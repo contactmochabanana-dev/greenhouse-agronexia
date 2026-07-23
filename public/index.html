@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agronexia</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/favicon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/brand/favicon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/agronexia-mark.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="ambient-root" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Agronexia home">
+      <img class="brand-mark" src="/assets/brand/agronexia-mark.svg" width="36" height="36" alt="" />
+      <span class="brand-name">Agronexia</span>
+    </a>
+    <div class="topbar-actions">
+      <button type="button" id="soundToggle" class="btn btn-ghost btn-sm" aria-pressed="true" title="Mute plant sounds">Sound on</button>
+      <button id="downloadAllBtn" class="btn btn-secondary">Download all QR codes</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel-list">
+      <div class="panel-header">
+        <h2>Greenhouses</h2>
+        <button id="addGreenhouseBtn" class="btn btn-primary">+ Add Greenhouse</button>
+      </div>
+      <ul id="greenhouseList" class="item-list"></ul>
+    </section>
+
+    <section class="panel panel-detail" id="detailPanel">
+      <div class="empty-state">
+        <p>Select a greenhouse to view its plants, or create a new one.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="saveToast" class="toast save-toast" role="status" aria-live="polite">Saved</div>
+
+  <!-- Add/Edit Greenhouse Modal -->
+  <div class="modal-overlay" id="greenhouseModal">
+    <div class="modal">
+      <h3 id="greenhouseModalTitle">Add Greenhouse</h3>
+      <form id="greenhouseForm">
+        <label>Name<input type="text" id="ghName" required placeholder="e.g. Greenhouse A" /></label>
+        <label>Plant type<input type="text" id="ghPlantType" required placeholder="e.g. Tomato" /></label>
+        <label>Location <span class="optional">(optional)</span><input type="text" id="ghLocation" placeholder="e.g. North Field" /></label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Batch Add Plants Modal -->
+  <div class="modal-overlay" id="plantModal">
+    <div class="modal">
+      <h3 id="plantModalTitle">Add Plants</h3>
+      <form id="plantForm">
+        <label>How many more plants to add<input type="number" id="plQuantity" min="1" max="1000" step="1" required placeholder="e.g. 50" /></label>
+        <p class="hint" id="plHint">Numbering continues from the last plant in this greenhouse, each with its own QR code.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ideal Conditions Modal -->
+  <div class="modal-overlay" id="conditionsModal">
+    <div class="modal modal-conditions">
+      <h3>Ideal Conditions</h3>
+      <p class="hint conditions-modal-hint">
+        Set ideal value and colour ranges. Custom = Good / Bad / Worse spans. Simple = one fine zone + alert. No overlapping spans.
+      </p>
+
+      <div class="conditions-section">
+        <div class="conditions-section-header">
+          <h4>Greenhouse</h4>
+          <button type="button" class="btn btn-ghost btn-sm" id="addGhConditionBtn">+ Parameter</button>
+        </div>
+        <div class="conditions-rows" id="ghConditionsRows"></div>
+      </div>
+
+      <div class="conditions-section">
+        <div class="conditions-section-header">
+          <h4 id="plantConditionsTitle">Plant</h4>
+          <button type="button" class="btn btn-ghost btn-sm" id="addPlantConditionBtn">+ Parameter</button>
+        </div>
+        <div class="conditions-rows" id="plantConditionsRows"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveConditionsBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Greenhouse Detail Modal -->
+  <div class="modal-overlay" id="greenhouseDetailModal">
+    <div class="modal modal-plant-detail">
+      <div class="plant-detail-header">
+        <div>
+          <h3 id="greenhouseDetailTitle">Greenhouse</h3>
+          <div class="meta" id="greenhouseDetailMeta"></div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="greenhouseDetailQrBtn">View Greenhouse QR Code</button>
+      </div>
+      <div class="tab-bar" id="greenhouseDetailTabs"></div>
+      <div class="tab-content" id="greenhouseDetailContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plant Detail Modal -->
+  <div class="modal-overlay" id="plantDetailModal">
+    <div class="modal modal-plant-detail">
+      <div class="plant-detail-header">
+        <div>
+          <h3 id="plantDetailTitle">Plant</h3>
+          <div class="meta" id="plantDetailMeta"></div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="plantDetailQrBtn">QR Code/More Info</button>
+      </div>
+      <div class="tab-bar" id="plantDetailTabs"></div>
+      <div class="tab-content" id="plantDetailContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Preview Modal -->
+  <div class="modal-overlay" id="qrModal">
+    <div class="modal modal-qr">
+      <h3 id="qrModalTitle">QR Code</h3>
+      <img id="qrImage" alt="QR Code" />
+      <p class="qr-code-label" id="qrCodeLabel"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="qrDeleteBtn">Delete Plant</button>
+        <button type="button" class="btn btn-ghost" data-close-modal>Close</button>
+        <a id="qrDownloadLink" class="btn btn-primary" download>Download PNG</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/motion.js"></script>
+  <script type="module" src="/js/experience.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
