@@ -14,6 +14,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api', apiRoutes);
 app.use('/api', qrRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Greenhouse dashboard running at http://localhost:${PORT}`);
-});
+// Local / traditional hosting
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Greenhouse dashboard running at http://localhost:${PORT}`);
+  });
+}
+
+// Vercel / serverless: export the Express app
+module.exports = app;
