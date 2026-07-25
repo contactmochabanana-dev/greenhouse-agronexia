@@ -819,7 +819,7 @@ function renderHarvests() {
   });
 
   document.getElementById('addHarvest').onclick = async () => {
-    const cycles = await api('/cycles');
+    let cycles = await api('/cycles');
     if (!sites.length) {
       toast('Add a place in step 1 first', 'error');
       return;
@@ -829,11 +829,30 @@ function renderHarvests() {
       return;
     }
     const placeSites = sites.filter((s) => s.id === state.activePlaceId);
+    const activeSite = placeSites[0];
     const siteOpts = placeSites
       .map((s) => `<option value="${esc(s.id)}">${esc(s.displayName || s.name)}</option>`)
       .join('');
-    const cycleOpts = cycles
-      .filter((c) => c.siteId === state.activePlaceId)
+    let placeCycles = cycles.filter((c) => c.siteId === state.activePlaceId);
+    // Auto-create a planting season if none exists for this place
+    if (!placeCycles.length && activeSite) {
+      try {
+        const created = await api('/cycles', {
+          method: 'POST',
+          body: JSON.stringify({
+            siteId: activeSite.id,
+            variety: activeSite.cropName || state.board.scope?.productLabel || 'Crop',
+            plantDate: new Date().toISOString().slice(0, 10),
+          }),
+        });
+        cycles = await api('/cycles');
+        placeCycles = cycles.filter((c) => c.siteId === state.activePlaceId);
+        if (!placeCycles.length && created?.id) placeCycles = [created];
+      } catch {
+        /* show empty select below */
+      }
+    }
+    const cycleOpts = placeCycles
       .map((c) => {
         const site = sites.find((x) => x.id === c.siteId);
         return `<option value="${esc(c.id)}">${esc(c.code)} · ${esc(c.variety)} · ${esc(site?.displayName || '')}</option>`;
@@ -842,7 +861,7 @@ function renderHarvests() {
     const today = new Date().toISOString().slice(0, 10);
 
     let plantBlock = `
-      <p class="meta">This place is export-only (no plant list from ops). Record kilos after you create the dig batch.</p>`;
+      <p class="meta">No plant numbers from Greenhouse ops for this place. Enter total <strong>kilos (kg)</strong> below.</p>`;
     let freePlants = [];
     try {
       const plantInfo = await api('/sites/' + encodeURIComponent(state.activePlaceId) + '/plants');
@@ -859,7 +878,7 @@ function renderHarvests() {
           )
           .join('');
         plantBlock = `
-          <p class="meta">Crop is fixed. Choose plants for <strong>this dig batch</strong> (one plant or many).
+          <p class="meta">Crop is fixed. Choose plants for <strong>this dig batch</strong> (one or many).
             Free: <strong>${esc(plantInfo.free)}</strong> · Already in another dig: <strong>${esc(taken)}</strong></p>
           <div class="form-grid">
             <label class="field">From plant #<input id="f_from" type="number" min="1" placeholder="e.g. 1" /></label>
@@ -883,23 +902,31 @@ function renderHarvests() {
     }
 
     openModal(
-      'New dig batch — how much',
+      'New dig batch — how much (kg)',
       `
       <div class="form-grid">
         <label class="field">Place<select id="f_site">${siteOpts}</select></label>
         <label class="field">Planting season<select id="f_cycle">${
-          cycleOpts || '<option value="">Add planting season in step 1 first</option>'
+          cycleOpts || '<option value="">No season — will try to create one</option>'
         }</select></label>
         <label class="field">Dig date<input id="f_date" type="date" value="${esc(today)}" /></label>
+        <label class="field">Total weight dug (kg) <span style="color:#b71c1c">*</span>
+          <input id="f_kg" type="number" min="0.1" step="0.1" required placeholder="e.g. 120" />
+        </label>
         <label class="field">Who recorded it<input id="f_sup" /></label>
       </div>
       <div class="section" style="margin-top:12px">
         <h3 style="margin:0 0 8px;font-size:0.95rem">Which plants?</h3>
         ${plantBlock}
       </div>
-      <p class="meta">After save, confirm total kilos on the row. Then tick the dig batch for packing.</p>
+      <p class="meta"><strong>Kilos (kg)</strong> is required. After save the dig batch is ready — tick it to send to packing.</p>
 `,
       async () => {
+        const kg = Number(val('f_kg'));
+        if (!(kg > 0)) {
+          toast('Enter total weight dug in kilograms (kg)', 'error');
+          throw new Error('Enter total weight dug in kilograms (kg)');
+        }
         const dateVal = val('f_date');
         const harvestedAt = dateVal ? new Date(dateVal + 'T12:00:00').toISOString() : undefined;
         const picked = [...document.querySelectorAll('input[name="plantPick"]:checked')].map(
@@ -907,24 +934,45 @@ function renderHarvests() {
         );
         const fromN = val('f_from');
         const toN = val('f_to');
+        let cycleId = val('f_cycle');
+        if (!cycleId) {
+          const created = await api('/cycles', {
+            method: 'POST',
+            body: JSON.stringify({
+              siteId: val('f_site'),
+              variety: activeSite?.cropName || state.board.scope?.productLabel || 'Crop',
+              plantDate: dateVal || today,
+            }),
+          });
+          cycleId = created.id;
+        }
         const body = {
           siteId: val('f_site'),
-          cycleId: val('f_cycle'),
+          cycleId,
           supervisor: val('f_sup'),
           harvestedAt,
+          quantityKg: kg,
           plantIds: picked,
-          requirePlants: freePlants.length > 0,
+          requirePlants: freePlants.length > 0 && !fromN,
         };
         if (!picked.length && fromN && toN) {
           body.fromNumber = Number(fromN);
           body.toNumber = Number(toN);
           delete body.plantIds;
+          body.requirePlants = freePlants.length > 0;
         }
-        await api('/harvests', {
+        if (freePlants.length > 0 && !picked.length && !(fromN && toN)) {
+          toast('Select plants (tick, range, or all free) or enter a plant number range', 'error');
+          throw new Error('Select plants for this dig batch');
+        }
+        const h = await api('/harvests', {
           method: 'POST',
           body: JSON.stringify(body),
         });
-        toast('Dig batch created');
+        if (h?.id && Number(h.unaccountedKg) > 0) {
+          toggleHarvestSelection(h.id, true);
+        }
+        toast('Dig batch saved: ' + kg + ' kg');
       }
     );
 
