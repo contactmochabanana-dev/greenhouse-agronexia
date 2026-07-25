@@ -605,3 +605,48 @@ label.field textarea:focus {
 .howto-steps li strong {
   color: var(--primary-dark);
 }
+
+.balance-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 12px 0 16px;
+  padding: 12px;
+  background: #f0f6ef;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.balance-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+}
+
+.balance-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.balance-warn,
+.balance-warn strong {
+  color: #9a6700;
+}
+
+.flow-banner {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+table.data tr.row-active td {
+  background: var(--primary-soft);
+}

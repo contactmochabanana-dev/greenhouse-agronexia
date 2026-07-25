@@ -132,6 +132,10 @@ router.post(
   withDb((db, req) => domain.createTlc(db, req.body || {}))
 );
 router.post(
+  '/tlcs/from-harvests',
+  withDb((db, req) => domain.createPackingLotFromHarvests(db, req.body || {}))
+);
+router.post(
   '/tlcs/:id/allocate',
   withDb((db, req) => domain.allocateHarvest(db, req.params.id, req.body || {}))
 );

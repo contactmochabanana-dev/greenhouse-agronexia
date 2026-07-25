@@ -1,10 +1,31 @@
 /* Agronexia Export Traceability — dashboard (standalone working model) */
 
+const FLOW_KEY = 'agronexia_export_flow';
+
+function loadFlow() {
+  try {
+    return JSON.parse(sessionStorage.getItem(FLOW_KEY) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveFlow(partial) {
+  const next = { ...loadFlow(), ...partial };
+  sessionStorage.setItem(FLOW_KEY, JSON.stringify(next));
+  return next;
+}
+
 const state = {
   view: 'board',
   board: null,
   selectedTlcId: null,
   selectedShipmentId: null,
+  /** Guided path: place → selected harvest batches → packing */
+  activePlaceId: loadFlow().activePlaceId || null,
+  selectedHarvestIds: Array.isArray(loadFlow().selectedHarvestIds)
+    ? loadFlow().selectedHarvestIds
+    : [],
 };
 
 const el = {
@@ -87,8 +108,107 @@ document.getElementById('btnRefresh').addEventListener('click', () => refresh())
 
 async function refresh() {
   state.board = await api('/board');
+  // Drop selections that no longer exist
+  const harvestIds = new Set((state.board.harvests || []).map((h) => h.id));
+  state.selectedHarvestIds = state.selectedHarvestIds.filter((id) => harvestIds.has(id));
+  if (state.activePlaceId && !(state.board.sites || []).some((s) => s.id === state.activePlaceId)) {
+    state.activePlaceId = null;
+  }
+  saveFlow({
+    activePlaceId: state.activePlaceId,
+    selectedHarvestIds: state.selectedHarvestIds,
+  });
   renderScope(state.board.scope);
   render();
+}
+
+function setActivePlace(siteId) {
+  state.activePlaceId = siteId || null;
+  // Clear harvest picks when place changes
+  state.selectedHarvestIds = [];
+  saveFlow({ activePlaceId: state.activePlaceId, selectedHarvestIds: [] });
+}
+
+function toggleHarvestSelection(harvestId, on) {
+  const set = new Set(state.selectedHarvestIds);
+  if (on) set.add(harvestId);
+  else set.delete(harvestId);
+  state.selectedHarvestIds = [...set];
+  saveFlow({ selectedHarvestIds: state.selectedHarvestIds });
+}
+
+function activePlace() {
+  return (state.board?.sites || []).find((s) => s.id === state.activePlaceId) || null;
+}
+
+function selectedHarvests() {
+  const ids = new Set(state.selectedHarvestIds);
+  return (state.board?.harvests || []).filter((h) => ids.has(h.id));
+}
+
+function harvestsForActivePlace() {
+  const all = state.board?.harvests || [];
+  if (!state.activePlaceId) return all;
+  return all.filter((h) => h.siteId === state.activePlaceId);
+}
+
+function balancePanelHtml() {
+  const b = state.board?.balance || {};
+  const harvested = Number(b.harvestedKg || 0);
+  const inLots = Number(b.inPackingLotsKg || 0);
+  const unacc = Number(b.unaccountedKg || 0);
+  const place = activePlace();
+  const sel = selectedHarvests();
+  const selUnacc = sel.reduce((s, h) => s + Number(h.unaccountedKg || 0), 0);
+  return `
+    <div class="balance-bar">
+      <div class="balance-item">
+        <span class="balance-label">Dug (confirmed)</span>
+        <strong>${esc(harvested)} kg</strong>
+      </div>
+      <div class="balance-item">
+        <span class="balance-label">In packing lots</span>
+        <strong>${esc(inLots)} kg</strong>
+      </div>
+      <div class="balance-item balance-warn">
+        <span class="balance-label">Not yet in any packing lot</span>
+        <strong>${esc(unacc)} kg</strong>
+      </div>
+      <div class="balance-item">
+        <span class="balance-label">Working on</span>
+        <strong>${place ? esc(place.displayName || place.name) : 'No place selected'}</strong>
+      </div>
+      <div class="balance-item">
+        <span class="balance-label">Batches selected for packing</span>
+        <strong>${esc(sel.length)} · ${esc(selUnacc)} kg free</strong>
+      </div>
+    </div>
+  `;
+}
+
+function flowBannerHtml(step) {
+  const place = activePlace();
+  const sel = selectedHarvests();
+  const lines = [];
+  if (step >= 1) {
+    lines.push(
+      place
+        ? `Place: <strong>${esc(place.displayName || place.name)}</strong>`
+        : '<span class="balance-warn">Select a place in step 1 first</span>'
+    );
+  }
+  if (step >= 2) {
+    lines.push(
+      sel.length
+        ? `Harvest batches: <strong>${esc(sel.map((h) => h.code).join(', '))}</strong> (${esc(
+            sel.reduce((s, h) => s + Number(h.unaccountedKg || 0), 0)
+          )} kg not packed yet)`
+        : step === 2
+          ? 'Tick harvest batches below, then continue to packing'
+          : '<span class="balance-warn">Select harvest batches in step 2</span>'
+    );
+  }
+  return `<div class="flow-banner">${lines.join(' · ')}</div>`;
 }
 
 const MARKET_LABELS = {
@@ -217,8 +337,8 @@ function renderHowTo() {
     <div class="section" style="margin-top:0">
       <ol class="howto-steps">
         <li><strong>Where it grew</strong> — Prefer a greenhouse from <strong>Greenhouse ops</strong>, or add an export-only place. Then add a planting season.</li>
-        <li><strong>What you dug</strong> — Harvest from that same place: date and kilos.</li>
-        <li><strong>Packing lot</strong> — Make one packing lot from that harvest, fill boxes, put labels, then lock the lot so numbers cannot be quietly changed.</li>
+        <li><strong>What you dug</strong> — Harvest from that same place: date and kilos. Tick batches that still have free kilos.</li>
+        <li><strong>Packing lot</strong> — Create a packing lot from the selected harvest batches, fill boxes, put labels, then lock. Free kilos still not packed show as unaccounted.</li>
         <li><strong>Papers</strong> — Add lab reports (safe food) and farm certificates (like GLOBALG.A.P.). Download anytime.</li>
         <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
         <li><strong>Find a box later</strong> — If someone asks “where did this box come from?”, type the lot or box code.</li>
@@ -267,6 +387,32 @@ function renderBoard() {
       <div>
         <h2>Overview</h2>
         <div class="meta">All packing lots and truck loads in one place</div>
+      </div>
+    </div>
+    ${balancePanelHtml()}
+    <div class="section">
+      <h3>Not yet packed (unaccounted kilos)</h3>
+      <p class="meta">Confirmed harvest kilos that are not in any packing lot yet. Select them in step 2, then pack in step 3.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Harvest</th><th>Place</th><th>Dug</th><th>In lots</th><th>Still free</th></tr></thead>
+          <tbody>${
+            (state.board.harvests || [])
+              .filter((h) => Number(h.unaccountedKg) > 0)
+              .map(
+                (h) =>
+                  `<tr>
+                    <td><strong>${esc(h.code)}</strong></td>
+                    <td>${esc(h.placeLabel)}</td>
+                    <td>${esc(h.totalKg)} kg</td>
+                    <td>${esc(h.inPackingLotsKg)} kg</td>
+                    <td class="balance-warn"><strong>${esc(h.unaccountedKg)} kg</strong></td>
+                  </tr>`
+              )
+              .join('') ||
+            '<tr><td colspan="5">Nothing left unaccounted — all confirmed kilos are in packing lots (or no harvests yet).</td></tr>'
+          }</tbody>
+        </table>
       </div>
     </div>
     <div class="section">
@@ -336,14 +482,19 @@ function renderSites() {
   const exportRows = sites
     .map(
       (s) => `
-    <tr>
+    <tr class="${s.id === state.activePlaceId ? 'row-active' : ''}">
       <td><strong>${esc(s.displayName || s.name)}</strong></td>
       <td>${esc(s.code)}</td>
       <td>${esc(s.sourceLabel || (s.greenhouseId ? 'From Greenhouse ops' : 'Export only'))}</td>
       <td>${esc(s.cropName || '—')}</td>
       <td>${esc(s.registrationNumber || '—')}</td>
       <td>${esc(pathwayLabel(s.pestPathway))}</td>
-      <td><button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Edit export details</button></td>
+      <td>
+        <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(s.id)}">${
+          s.id === state.activePlaceId ? 'Working here' : 'Work from here'
+        }</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Edit</button>
+      </td>
     </tr>`
     )
     .join('');
@@ -352,7 +503,7 @@ function renderSites() {
     <div class="detail-header">
       <div>
         <h2>1. Where it grew</h2>
-        <div class="meta">Choose a greenhouse from Greenhouse ops, or add a place only for export.</div>
+        <div class="meta">Choose a greenhouse from Greenhouse ops, or add a place only for export. Then harvest and pack only continue from that place.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-secondary btn-sm" id="addSiteOnly">+ Export-only place</button>
@@ -383,6 +534,8 @@ function renderSites() {
       }
     </div>
 
+    ${balancePanelHtml()}
+    ${flowBannerHtml(1)}
     <div class="section">
       <h3>Places ready for export</h3>
       <div class="table-wrap">
@@ -393,6 +546,16 @@ function renderSites() {
       </div>
     </div>
   `;
+
+  el.detail.querySelectorAll('[data-work-site]').forEach((btn) => {
+    btn.onclick = () => {
+      setActivePlace(btn.dataset.workSite);
+      toast('Now working from this place — go to harvest');
+      state.view = 'harvests';
+      syncNav();
+      render();
+    };
+  });
 
   el.detail.querySelectorAll('[data-use-gh]').forEach((btn) => {
     btn.onclick = () => {
@@ -415,7 +578,7 @@ function renderSites() {
           </label>
         </div>`,
         async () => {
-          await api('/sites', {
+          const created = await api('/sites', {
             method: 'POST',
             body: JSON.stringify({
               greenhouseId: gh.id,
@@ -424,7 +587,8 @@ function renderSites() {
               pestPathway: val('f_path'),
             }),
           });
-          toast('Greenhouse linked for export');
+          setActivePlace(created.id);
+          toast('Greenhouse linked — continue to harvest');
         }
       );
     };
@@ -450,7 +614,7 @@ function renderSites() {
         <label class="field">Facility / farm name<input id="f_fac" /></label>
       </div>`,
       async () => {
-        await api('/sites', {
+        const created = await api('/sites', {
           method: 'POST',
           body: JSON.stringify({
             code: val('f_code'),
@@ -461,7 +625,8 @@ function renderSites() {
             facilityName: val('f_fac'),
           }),
         });
-        toast('Export place created');
+        setActivePlace(created.id);
+        toast('Place saved — continue to harvest for this place');
       }
     );
   };
@@ -537,22 +702,39 @@ function val(id) {
 
 function renderHarvests() {
   const sites = state.board.sites || [];
-  const rows = (state.board.harvests || [])
+  if (!state.activePlaceId && sites.length === 1) {
+    setActivePlace(sites[0].id);
+  }
+  const place = activePlace();
+  const list = harvestsForActivePlace();
+  const rows = list
     .map((h) => {
       const when = h.harvestedAt ? new Date(h.harvestedAt).toLocaleString() : '—';
+      const canSelect = h.selectableForPacking;
+      const checked = state.selectedHarvestIds.includes(h.id);
       return `
-    <tr>
+    <tr class="${checked ? 'row-active' : ''}">
+      <td>
+        ${
+          canSelect
+            ? `<input type="checkbox" data-pick-harvest="${esc(h.id)}" ${checked ? 'checked' : ''} title="Select for packing" />`
+            : '—'
+        }
+      </td>
       <td><strong>${esc(h.code)}</strong></td>
-      <td>${esc(h.placeLabel || '—')}${h.greenhouseId || h.site?.greenhouseId ? ' <span class="scope-pill">ops</span>' : ''}</td>
+      <td>${esc(h.placeLabel || '—')}</td>
       <td>${esc(h.cropName || '—')}</td>
       <td>${esc(when)}</td>
       <td>${statusBadge(h.status)}</td>
-      <td>${esc(h.quantityKg ?? '—')} kg</td>
-      <td>${esc(h.remainingKg ?? '—')} kg left</td>
+      <td>${esc(h.totalKg ?? '—')} kg</td>
+      <td>${esc(h.inPackingLotsKg ?? '—')} kg</td>
+      <td class="balance-warn"><strong>${esc(h.unaccountedKg ?? '—')}</strong> kg</td>
       <td>${
         h.status === 'OPEN'
           ? `<button type="button" class="btn btn-primary btn-sm" data-confirm="${esc(h.id)}">Confirm kilos</button>`
-          : ''
+          : canSelect
+            ? `<button type="button" class="btn btn-secondary btn-sm" data-pick-one="${esc(h.id)}">Select</button>`
+            : '—'
       }</td>
     </tr>`;
     })
@@ -562,36 +744,78 @@ function renderHarvests() {
     <div class="detail-header">
       <div>
         <h2>2. What you dug</h2>
-        <div class="meta">Harvest is always from a place in step 1 (greenhouse from ops, or export-only place).</div>
+        <div class="meta">Harvest from the place you chose in step 1. Tick batches to send to packing.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addHarvest">+ Harvest</button>
+        <button class="btn btn-secondary btn-sm" id="toPacking" ${
+          selectedHarvests().length ? '' : 'disabled'
+        }>Continue to packing (${esc(selectedHarvests().length)})</button>
       </div>
     </div>
+    ${balancePanelHtml()}
+    ${flowBannerHtml(2)}
+    ${
+      !place
+        ? `<p class="meta balance-warn">Select <strong>Work from here</strong> on a place in step 1 first. Harvest and packing continue from that place only.</p>`
+        : ''
+    }
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th>Harvest</th><th>Place</th><th>Crop</th><th>When</th><th>Status</th><th>Kilos</th><th>Left</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="8">No harvests yet. Link a greenhouse (or add a place) in step 1, then add a harvest.</td></tr>'}</tbody>
+        <thead><tr><th>Pack?</th><th>Harvest batch</th><th>Place</th><th>Crop</th><th>When</th><th>Status</th><th>Dug</th><th>In lots</th><th>Not packed yet</th><th></th></tr></thead>
+        <tbody>${
+          rows ||
+          '<tr><td colspan="10">No harvests for this place yet. Add a harvest, confirm kilos, then select the batch for packing.</td></tr>'
+        }</tbody>
       </table>
     </div>
   `;
 
+  document.getElementById('toPacking').onclick = () => {
+    if (!selectedHarvests().length) {
+      toast('Select at least one harvest batch with free kilos', 'error');
+      return;
+    }
+    state.view = 'tlcs';
+    syncNav();
+    render();
+  };
+
+  el.detail.querySelectorAll('[data-pick-harvest]').forEach((box) => {
+    box.onchange = () => {
+      toggleHarvestSelection(box.dataset.pickHarvest, box.checked);
+      renderHarvests();
+    };
+  });
+  el.detail.querySelectorAll('[data-pick-one]').forEach((btn) => {
+    btn.onclick = () => {
+      toggleHarvestSelection(btn.dataset.pickOne, true);
+      const h = (state.board.harvests || []).find((x) => x.id === btn.dataset.pickOne);
+      if (h) setActivePlace(h.siteId);
+      toast('Batch selected for packing');
+      renderHarvests();
+    };
+  });
+
   document.getElementById('addHarvest').onclick = async () => {
     const cycles = await api('/cycles');
     if (!sites.length) {
-      toast('Add a place in step 1 first (use a greenhouse or export-only place)', 'error');
+      toast('Add a place in step 1 first', 'error');
       return;
     }
-    const siteOpts = sites
-      .map(
-        (s) =>
-          `<option value="${esc(s.id)}">${esc(s.displayName || s.name)}${s.greenhouseId ? ' · from ops' : ' · export only'}</option>`
-      )
+    if (!state.activePlaceId) {
+      toast('Choose Work from here on a place in step 1 first', 'error');
+      return;
+    }
+    const placeSites = sites.filter((s) => s.id === state.activePlaceId);
+    const siteOpts = placeSites
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.displayName || s.name)}</option>`)
       .join('');
     const cycleOpts = cycles
+      .filter((c) => c.siteId === state.activePlaceId)
       .map((c) => {
         const site = sites.find((x) => x.id === c.siteId);
-        return `<option value="${esc(c.id)}" data-site="${esc(c.siteId)}">${esc(c.code)} · ${esc(c.variety)} · ${esc(site?.displayName || site?.name || '')}</option>`;
+        return `<option value="${esc(c.id)}">${esc(c.code)} · ${esc(c.variety)} · ${esc(site?.displayName || '')}</option>`;
       })
       .join('');
     const today = new Date().toISOString().slice(0, 10);
@@ -599,12 +823,14 @@ function renderHarvests() {
       'Record harvest',
       `
       <div class="form-grid">
-        <label class="field">Place (from step 1)<select id="f_site">${siteOpts}</select></label>
-        <label class="field">Planting season<select id="f_cycle">${cycleOpts || '<option value="">Add a planting season in step 1 first</option>'}</select></label>
+        <label class="field">Place<select id="f_site">${siteOpts}</select></label>
+        <label class="field">Planting season<select id="f_cycle">${
+          cycleOpts || '<option value="">Add planting season in step 1 first</option>'
+        }</select></label>
         <label class="field">Harvest date<input id="f_date" type="date" value="${esc(today)}" /></label>
         <label class="field">Who recorded it<input id="f_sup" /></label>
       </div>
-      <p class="meta">After saving, use <strong>Confirm kilos</strong> on the row to enter weight.</p>
+      <p class="meta">Then confirm kilos on the row. Tick the batch to send it to packing.</p>
 `,
       async () => {
         const dateVal = val('f_date');
@@ -633,7 +859,8 @@ function renderHarvests() {
             method: 'POST',
             body: JSON.stringify({ quantityKg: Number(val('f_qty')) }),
           });
-          toast('Harvest kilos saved');
+          toggleHarvestSelection(btn.dataset.confirm, true);
+          toast('Harvest kilos saved — batch ready to select for packing');
         }
       );
     };
@@ -644,15 +871,29 @@ function renderTlcs() {
   if (state.selectedTlcId) {
     return renderTlcDetail(state.selectedTlcId);
   }
-  const rows = state.board.tlcs
+  const sel = selectedHarvests();
+  const freeKg = sel.reduce((s, h) => s + Number(h.unaccountedKg || 0), 0);
+  const placeLots = (state.board.tlcs || []).filter(
+    (t) => !state.activePlaceId || t.primarySiteId === state.activePlaceId
+  );
+  const rows = placeLots
     .map(
       (t) => `
     <tr class="clickable" data-id="${esc(t.id)}">
       <td><strong>${esc(t.code)}</strong></td>
+      <td>${esc(t.placeLabel || '—')}</td>
       <td>${statusBadge(t.status)}</td>
       <td>${esc(t.grade)}</td>
-      <td>${esc(t.packedQtyKg)} kg</td>
+      <td>${esc(t.allocatedKg)} kg from harvest</td>
+      <td>${esc(t.packedQtyKg)} kg in boxes</td>
     </tr>`
+    )
+    .join('');
+
+  const batchList = sel
+    .map(
+      (h) =>
+        `<li><strong>${esc(h.code)}</strong> — ${esc(h.unaccountedKg)} kg free · ${esc(h.placeLabel)}</li>`
     )
     .join('');
 
@@ -660,43 +901,84 @@ function renderTlcs() {
     <div class="detail-header">
       <div>
         <h2>3. Packing lot</h2>
-        <div class="meta">Join harvest kilos into one lot, pack boxes, print labels, then lock.</div>
+        <div class="meta">Pack from the harvest batches you selected in step 2 (same place only).</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-primary btn-sm" id="addTlc">+ TLC</button>
+        <button class="btn btn-primary btn-sm" id="packFromBatches" ${
+          sel.length ? '' : 'disabled'
+        }>Create packing lot from selected batches</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr><th>Code</th><th>Status</th><th>Grade</th><th>Packed</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4">No TLCs</td></tr>'}</tbody>
-      </table>
+    ${balancePanelHtml()}
+    ${flowBannerHtml(3)}
+    <div class="section" style="margin-top:0">
+      <h3>Selected harvest batches → packing</h3>
+      ${
+        sel.length
+          ? `<ul class="howto-steps">${batchList}</ul>
+             <p class="meta">Total free kilos to put in this lot: <strong>${esc(freeKg)} kg</strong></p>`
+          : `<p class="meta balance-warn">No batches selected. Go to <strong>2. What you dug</strong>, tick harvests with free kilos, then continue here.</p>
+             <button type="button" class="btn btn-secondary btn-sm" id="goHarvests">Go to harvests</button>`
+      }
+    </div>
+    <div class="section">
+      <h3>Packing lots${state.activePlaceId ? ' for this place' : ''}</h3>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Lot</th><th>Place</th><th>Status</th><th>Grade</th><th>From harvest</th><th>In boxes</th></tr></thead>
+          <tbody>${
+            rows ||
+            '<tr><td colspan="6">No packing lots yet. Select harvest batches and create a packing lot.</td></tr>'
+          }</tbody>
+        </table>
+      </div>
     </div>
   `;
 
-  document.getElementById('addTlc').onclick = () => {
-    const opts = state.board.sites.map((s) => `<option value="${esc(s.id)}">${esc(s.code)}</option>`).join('');
+  const goH = document.getElementById('goHarvests');
+  if (goH) {
+    goH.onclick = () => {
+      state.view = 'harvests';
+      syncNav();
+      render();
+    };
+  }
+
+  document.getElementById('packFromBatches').onclick = () => {
+    if (!sel.length) {
+      toast('Select harvest batches in step 2 first', 'error');
+      return;
+    }
     openModal(
-      'Create TLC (export batch)',
+      'Create packing lot from batches',
       `
+      <p class="meta">Will use ${esc(sel.length)} harvest batch(es), ${esc(freeKg)} kg free, place: <strong>${esc(
+        sel[0].placeLabel || ''
+      )}</strong></p>
       <div class="form-grid">
-        <label class="field">Primary site<select id="f_site">${opts}</select></label>
         <label class="field">Grade<input id="f_grade" value="large" /></label>
-        <label class="field">Program
-          <select id="f_prog"><option value="conventional">conventional</option><option value="organic">organic</option></select>
+        <label class="field">Type
+          <select id="f_prog"><option value="conventional">Normal</option><option value="organic">Organic</option></select>
         </label>
-      </div>`,
+      </div>
+      <p class="meta">All free kilos from the selected batches will go into this packing lot. Then add boxes and lock.</p>`,
       async () => {
-        const t = await api('/tlcs', {
+        const result = await api('/tlcs/from-harvests', {
           method: 'POST',
           body: JSON.stringify({
-            primarySiteId: val('f_site'),
+            harvestIds: state.selectedHarvestIds,
             grade: val('f_grade'),
             program: val('f_prog'),
+            allocateAllRemaining: true,
           }),
         });
-        toast('TLC ' + t.code);
-        state.selectedTlcId = t.id;
+        state.selectedHarvestIds = [];
+        saveFlow({ selectedHarvestIds: [] });
+        state.selectedTlcId = result.tlc.id;
+        toast('Packing lot ' + result.tlc.code + ' created from batches');
+        await refresh();
+        state.selectedTlcId = result.tlc.id;
+        renderTlcDetail(result.tlc.id);
       }
     );
   };
