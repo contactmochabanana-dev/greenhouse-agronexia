@@ -336,7 +336,7 @@ function renderHowTo() {
     </div>
     <div class="section" style="margin-top:0">
       <ol class="howto-steps">
-        <li><strong>Where it grew</strong> — Prefer a greenhouse from <strong>Greenhouse ops</strong>, or add an export-only place. Then add a planting season.</li>
+        <li><strong>Where it grew</strong> — One list of places. Set up a greenhouse from ops for export (same place, not a second field), or add a place only for export. Then plant season and harvest from there.</li>
         <li><strong>What you dug</strong> — Harvest from that same place: date and kilos. Tick batches that still have free kilos.</li>
         <li><strong>Packing lot</strong> — Create a packing lot from the selected harvest batches, fill boxes, put labels, then lock. Free kilos still not packed show as unaccounted.</li>
         <li><strong>Papers</strong> — Tick the countries you will export to. The list shows only the papers those places need. Upload each one.</li>
@@ -462,86 +462,106 @@ function syncNav() {
 function renderSites() {
   const sites = state.board.sites || [];
   const opsGhs = state.board.opsGreenhouses || [];
-  const availableOps = opsGhs.filter((g) => !g.linkedToExport);
-  const linkedOps = opsGhs.filter((g) => g.linkedToExport);
 
-  const opsAvailableRows = availableOps
-    .map(
-      (g) => `
-    <tr>
-      <td><strong>${esc(g.name)}</strong></td>
-      <td>${esc(g.code)}</td>
-      <td>${esc(g.plantType || '—')}</td>
-      <td>${esc(g.location || '—')}</td>
-      <td>${esc(g.plantCount)} plants</td>
-      <td><button type="button" class="btn btn-primary btn-sm" data-use-gh="${esc(g.id)}">Use for export</button></td>
-    </tr>`
-    )
-    .join('');
+  // One list: each greenhouse once + export-only places
+  const rows = [];
 
-  const exportRows = sites
-    .map(
-      (s) => `
-    <tr class="${s.id === state.activePlaceId ? 'row-active' : ''}">
-      <td><strong>${esc(s.displayName || s.name)}</strong></td>
-      <td>${esc(s.code)}</td>
-      <td>${esc(s.sourceLabel || (s.greenhouseId ? 'From Greenhouse ops' : 'Export only'))}</td>
-      <td>${esc(s.cropName || '—')}</td>
-      <td>${esc(s.registrationNumber || '—')}</td>
-      <td>${esc(pathwayLabel(s.pestPathway))}</td>
-      <td>
-        <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(s.id)}">${
-          s.id === state.activePlaceId ? 'Working here' : 'Work from here'
-        }</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Edit</button>
-      </td>
-    </tr>`
-    )
-    .join('');
+  for (const g of opsGhs) {
+    const linked = sites.find((s) => s.greenhouseId === g.id);
+    if (linked) {
+      const active = linked.id === state.activePlaceId;
+      rows.push(`
+        <tr class="${active ? 'row-active' : ''}">
+          <td><strong>${esc(g.name)}</strong></td>
+          <td>${esc(g.code)}</td>
+          <td>${esc(g.plantType || linked.cropName || '—')}</td>
+          <td>${esc(g.location || linked.address || '—')}</td>
+          <td>Greenhouse ops</td>
+          <td><span class="status CLEARED">Ready</span>${
+            active ? ' · <strong>Working here</strong>' : ''
+          }</td>
+          <td>
+            <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(linked.id)}">${
+              active ? 'Continue harvest' : 'Work here'
+            }</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(linked.id)}">Export details</button>
+          </td>
+        </tr>`);
+    } else {
+      rows.push(`
+        <tr>
+          <td><strong>${esc(g.name)}</strong></td>
+          <td>${esc(g.code)}</td>
+          <td>${esc(g.plantType || '—')}</td>
+          <td>${esc(g.location || '—')}</td>
+          <td>Greenhouse ops</td>
+          <td><span class="status OPEN">Not set up for export yet</span></td>
+          <td>
+            <button type="button" class="btn btn-primary btn-sm" data-use-gh="${esc(g.id)}">Set up for export</button>
+          </td>
+        </tr>`);
+    }
+  }
+
+  for (const s of sites.filter((x) => !x.greenhouseId)) {
+    const active = s.id === state.activePlaceId;
+    rows.push(`
+      <tr class="${active ? 'row-active' : ''}">
+        <td><strong>${esc(s.name)}</strong></td>
+        <td>${esc(s.code)}</td>
+        <td>${esc(s.cropName || '—')}</td>
+        <td>${esc(s.address || '—')}</td>
+        <td>Export only</td>
+        <td><span class="status CLEARED">Ready</span>${
+          active ? ' · <strong>Working here</strong>' : ''
+        }</td>
+        <td>
+          <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(s.id)}">${
+            active ? 'Continue harvest' : 'Work here'
+          }</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Export details</button>
+        </td>
+      </tr>`);
+  }
 
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
         <h2>1. Where it grew</h2>
-        <div class="meta">Choose a greenhouse from Greenhouse ops, or add a place only for export. Then harvest and pack only continue from that place.</div>
+        <div class="meta">One list of places. Greenhouses from ops appear here — set up once, then harvest from the same place.</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-secondary btn-sm" id="addSiteOnly">+ Export-only place</button>
+        <button class="btn btn-secondary btn-sm" id="addSiteOnly">+ Place not in ops</button>
         <button class="btn btn-secondary btn-sm" id="addCycle">+ Planting season</button>
       </div>
     </div>
-
-    <div class="section" style="margin-top:0">
-      <h3>From Greenhouse ops (your greenhouses)</h3>
-      <p class="meta">These come from the Greenhouse ops dashboard. Pick one to use for export tracking.</p>
-      <div class="table-wrap">
-        <table class="data">
-          <thead><tr><th>Greenhouse</th><th>Code</th><th>Crop</th><th>Location</th><th>Plants</th><th></th></tr></thead>
-          <tbody>
-            ${
-              opsAvailableRows ||
-              (opsGhs.length
-                ? '<tr><td colspan="6">All greenhouses are already linked for export (see below).</td></tr>'
-                : '<tr><td colspan="6">No greenhouses yet. Create one under <a href="/">Greenhouse ops</a>, then come back.</td></tr>')
-            }
-          </tbody>
-        </table>
-      </div>
-      ${
-        linkedOps.length
-          ? `<p class="meta" style="margin-top:10px">Already linked: ${linkedOps.map((g) => esc(g.name)).join(', ')}</p>`
-          : ''
-      }
-    </div>
-
     ${balancePanelHtml()}
     ${flowBannerHtml(1)}
-    <div class="section">
-      <h3>Places ready for export</h3>
+    <div class="section" style="margin-top:0">
+      <h3>Your places</h3>
+      <p class="meta">
+        Same greenhouse as in Greenhouse ops — not a second place.
+        <strong>Set up for export</strong> once, then <strong>Work here</strong> for harvest and packing.
+      </p>
       <div class="table-wrap">
         <table class="data">
-          <thead><tr><th>Place</th><th>Code</th><th>Source</th><th>Crop</th><th>Registration</th><th>Plant health origin</th><th></th></tr></thead>
-          <tbody>${exportRows || '<tr><td colspan="7">None yet. Use a greenhouse above, or add an export-only place.</td></tr>'}</tbody>
+          <thead>
+            <tr>
+              <th>Place</th>
+              <th>Code</th>
+              <th>Crop</th>
+              <th>Location</th>
+              <th>From</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              rows.join('') ||
+              `<tr><td colspan="7">No places yet. Create a greenhouse under <a href="/">Greenhouse ops</a>, or add a place not in ops.</td></tr>`
+            }
+          </tbody>
         </table>
       </div>
     </div>
