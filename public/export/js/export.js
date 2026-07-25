@@ -1199,8 +1199,8 @@ async function renderTlcDetail(id) {
       </div>
       <div class="detail-actions">
         <button class="btn btn-ghost btn-sm" id="backTlcs">All packing lots</button>
-        <a class="btn btn-secondary btn-sm" href="/export/passport.html?code=${encodeURIComponent(t.code)}" target="_blank">Public passport</a>
-        <button class="btn btn-secondary btn-sm" id="btnQr">QR passport URL</button>
+        <a class="btn btn-secondary btn-sm" href="/export/passport.html?code=${encodeURIComponent(t.code)}" target="_blank">Share link for this lot</a>
+        <button class="btn btn-secondary btn-sm" id="btnQr">Open share link</button>
         <button class="btn btn-secondary btn-sm" id="btnAlloc">Add dig kilos</button>
         <button class="btn btn-secondary btn-sm" id="btnCase">+ Box</button>
         <button class="btn btn-secondary btn-sm" id="btnLabels">Mark labels done</button>
