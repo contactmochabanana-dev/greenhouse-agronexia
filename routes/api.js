@@ -95,6 +95,8 @@ function attachPlantHealth(plants, greenhouse, db) {
 // ---------- Greenhouses ----------
 // Each greenhouse grows exactly one kind of plant (plantType). Plants inside
 // it are just numbered instances of that kind (#1, #2, ...).
+// Crop is fixed for this farm — only Ginger(Mariani) is supported in ops.
+const FIXED_PLANT_TYPE = 'Ginger(Mariani)';
 
 router.get('/greenhouses', (req, res) => {
   const db = load();
@@ -106,9 +108,8 @@ router.get('/greenhouses', (req, res) => {
 });
 
 router.post('/greenhouses', (req, res) => {
-  const { name, location, plantType } = req.body;
+  const { name, location } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
-  if (!plantType || !plantType.trim()) return res.status(400).json({ error: 'Plant type is required' });
 
   const db = load();
   const greenhouse = {
@@ -116,7 +117,7 @@ router.post('/greenhouses', (req, res) => {
     code: shortCode('GH'),
     name: name.trim(),
     location: (location || '').trim(),
-    plantType: plantType.trim(),
+    plantType: FIXED_PLANT_TYPE,
     // Ideal-condition parameters are fully user-defined (name/value/unit),
     // kept as two separate lists: one for the greenhouse environment itself,
     // one for the plant type grown in it.
@@ -140,10 +141,11 @@ router.put('/greenhouses/:id', (req, res) => {
   const db = load();
   const greenhouse = db.greenhouses.find((g) => g.id === req.params.id);
   if (!greenhouse) return res.status(404).json({ error: 'Greenhouse not found' });
-  const { name, location, plantType } = req.body;
+  const { name, location } = req.body;
   if (name !== undefined) greenhouse.name = name.trim();
   if (location !== undefined) greenhouse.location = location.trim();
-  if (plantType !== undefined) greenhouse.plantType = plantType.trim();
+  // Plant type is fixed; always keep Ginger(Mariani) even if client sends another value.
+  greenhouse.plantType = FIXED_PLANT_TYPE;
   save(db);
   res.json(greenhouse);
 });

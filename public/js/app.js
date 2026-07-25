@@ -1,4 +1,6 @@
 const PAGE_SIZE = 100;
+/** Single supported crop for greenhouse ops — not user-selectable. */
+const FIXED_PLANT_TYPE = 'Ginger(Mariani)';
 
 const state = {
   greenhouses: [],
@@ -371,7 +373,7 @@ function openGreenhouseModal(gh) {
   editingGreenhouseId = gh ? gh.id : null;
   el.greenhouseModalTitle.textContent = gh ? 'Edit Greenhouse' : 'Add Greenhouse';
   el.ghName.value = gh ? gh.name : '';
-  el.ghPlantType.value = gh ? gh.plantType : '';
+  el.ghPlantType.value = FIXED_PLANT_TYPE;
   el.ghLocation.value = gh ? gh.location : '';
   el.greenhouseModal.classList.add('open');
   el.ghName.focus();
@@ -387,7 +389,7 @@ el.addGreenhouseBtn.addEventListener('click', () => openGreenhouseModal());
 
 el.greenhouseForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const payload = { name: el.ghName.value, plantType: el.ghPlantType.value, location: el.ghLocation.value };
+  const payload = { name: el.ghName.value, plantType: FIXED_PLANT_TYPE, location: el.ghLocation.value };
   try {
     if (editingGreenhouseId) {
       await api(`/greenhouses/${editingGreenhouseId}`, { method: 'PUT', body: JSON.stringify(payload) });
