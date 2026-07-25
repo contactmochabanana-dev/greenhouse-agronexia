@@ -216,8 +216,8 @@ function renderHowTo() {
     </div>
     <div class="section" style="margin-top:0">
       <ol class="howto-steps">
-        <li><strong>Where it grew</strong> — Name each greenhouse block or field (and the planting season).</li>
-        <li><strong>What you dug</strong> — On harvest day, write how many kilos you took from that place.</li>
+        <li><strong>Where it grew</strong> — Prefer a greenhouse from <strong>Greenhouse ops</strong>, or add an export-only place. Then add a planting season.</li>
+        <li><strong>What you dug</strong> — Harvest from that same place: date and kilos.</li>
         <li><strong>Packing lot</strong> — Make one packing lot from that harvest, fill boxes, put labels, then lock the lot so numbers cannot be quietly changed.</li>
         <li><strong>Papers</strong> — Add lab reports (safe food) and farm certificates (like GLOBALG.A.P.). Download anytime.</li>
         <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
@@ -315,15 +315,35 @@ function syncNav() {
 
 function renderSites() {
   const sites = state.board.sites || [];
-  const rows = sites
+  const opsGhs = state.board.opsGreenhouses || [];
+  const availableOps = opsGhs.filter((g) => !g.linkedToExport);
+  const linkedOps = opsGhs.filter((g) => g.linkedToExport);
+
+  const opsAvailableRows = availableOps
+    .map(
+      (g) => `
+    <tr>
+      <td><strong>${esc(g.name)}</strong></td>
+      <td>${esc(g.code)}</td>
+      <td>${esc(g.plantType || '—')}</td>
+      <td>${esc(g.location || '—')}</td>
+      <td>${esc(g.plantCount)} plants</td>
+      <td><button type="button" class="btn btn-primary btn-sm" data-use-gh="${esc(g.id)}">Use for export</button></td>
+    </tr>`
+    )
+    .join('');
+
+  const exportRows = sites
     .map(
       (s) => `
     <tr>
-      <td><strong>${esc(s.code)}</strong></td>
-      <td>${esc(s.name)}</td>
-      <td>${esc(s.country)}</td>
-      <td>${esc(s.registrationNumber)}</td>
+      <td><strong>${esc(s.displayName || s.name)}</strong></td>
+      <td>${esc(s.code)}</td>
+      <td>${esc(s.sourceLabel || (s.greenhouseId ? 'From Greenhouse ops' : 'Export only'))}</td>
+      <td>${esc(s.cropName || '—')}</td>
+      <td>${esc(s.registrationNumber || '—')}</td>
       <td>${esc(pathwayLabel(s.pestPathway))}</td>
+      <td><button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Edit export details</button></td>
     </tr>`
     )
     .join('');
@@ -332,28 +352,92 @@ function renderSites() {
     <div class="detail-header">
       <div>
         <h2>1. Where it grew</h2>
-        <div class="meta">Name each block or field. Add a planting season (cycle) for that place.</div>
+        <div class="meta">Choose a greenhouse from Greenhouse ops, or add a place only for export.</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-primary btn-sm" id="addSite">+ Site</button>
-        <button class="btn btn-secondary btn-sm" id="addCycle">+ Crop cycle</button>
+        <button class="btn btn-secondary btn-sm" id="addSiteOnly">+ Export-only place</button>
+        <button class="btn btn-secondary btn-sm" id="addCycle">+ Planting season</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead><tr><th>Code</th><th>Name</th><th>Country</th><th>Registration</th><th>Pathway</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5">No sites</td></tr>'}</tbody>
-      </table>
+
+    <div class="section" style="margin-top:0">
+      <h3>From Greenhouse ops (your greenhouses)</h3>
+      <p class="meta">These come from the Greenhouse ops dashboard. Pick one to use for export tracking.</p>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Greenhouse</th><th>Code</th><th>Crop</th><th>Location</th><th>Plants</th><th></th></tr></thead>
+          <tbody>
+            ${
+              opsAvailableRows ||
+              (opsGhs.length
+                ? '<tr><td colspan="6">All greenhouses are already linked for export (see below).</td></tr>'
+                : '<tr><td colspan="6">No greenhouses yet. Create one under <a href="/">Greenhouse ops</a>, then come back.</td></tr>')
+            }
+          </tbody>
+        </table>
+      </div>
+      ${
+        linkedOps.length
+          ? `<p class="meta" style="margin-top:10px">Already linked: ${linkedOps.map((g) => esc(g.name)).join(', ')}</p>`
+          : ''
+      }
+    </div>
+
+    <div class="section">
+      <h3>Places ready for export</h3>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Place</th><th>Code</th><th>Source</th><th>Crop</th><th>Registration</th><th>Plant health origin</th><th></th></tr></thead>
+          <tbody>${exportRows || '<tr><td colspan="7">None yet. Use a greenhouse above, or add an export-only place.</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
   `;
 
-  document.getElementById('addSite').onclick = () => {
+  el.detail.querySelectorAll('[data-use-gh]').forEach((btn) => {
+    btn.onclick = () => {
+      const gh = opsGhs.find((g) => g.id === btn.dataset.useGh);
+      if (!gh) return;
+      openModal(
+        'Use greenhouse for export',
+        `
+        <p class="meta" style="margin:0 0 12px">Greenhouse: <strong>${esc(gh.name)}</strong> · Crop: <strong>${esc(gh.plantType || '—')}</strong></p>
+        <p class="meta" style="margin:0 0 12px">Name and code come from Greenhouse ops. Add export details below if you have them.</p>
+        <div class="form-grid">
+          <label class="field">Country<input id="f_country" value="IN" /></label>
+          <label class="field">Registration #<input id="f_reg" placeholder="If you have one" /></label>
+          <label class="field">Plant health origin
+            <select id="f_path">
+              <option value="registered_site">Registered production site</option>
+              <option value="pest_free_area">Pest-free area</option>
+              <option value="country_free">Country recognized free</option>
+            </select>
+          </label>
+        </div>`,
+        async () => {
+          await api('/sites', {
+            method: 'POST',
+            body: JSON.stringify({
+              greenhouseId: gh.id,
+              country: val('f_country'),
+              registrationNumber: val('f_reg'),
+              pestPathway: val('f_path'),
+            }),
+          });
+          toast('Greenhouse linked for export');
+        }
+      );
+    };
+  });
+
+  document.getElementById('addSiteOnly').onclick = () => {
     openModal(
-      'Add production site (ginger)',
+      'Add export-only place',
       `
+      <p class="meta" style="margin:0 0 12px">Use this when the place is not in Greenhouse ops.</p>
       <div class="form-grid">
         <label class="field">Code<input id="f_code" value="SITE-" /></label>
-        <label class="field">Name<input id="f_name" /></label>
+        <label class="field">Name<input id="f_name" placeholder="Field or block name" /></label>
         <label class="field">Country<input id="f_country" value="IN" /></label>
         <label class="field">Registration #<input id="f_reg" /></label>
         <label class="field">Plant health origin
@@ -363,7 +447,7 @@ function renderSites() {
             <option value="country_free">Country recognized free</option>
           </select>
         </label>
-        <label class="field">Facility<input id="f_fac" /></label>
+        <label class="field">Facility / farm name<input id="f_fac" /></label>
       </div>`,
       async () => {
         await api('/sites', {
@@ -377,21 +461,59 @@ function renderSites() {
             facilityName: val('f_fac'),
           }),
         });
-        toast('Site created');
+        toast('Export place created');
       }
     );
   };
 
+  el.detail.querySelectorAll('[data-edit-site]').forEach((btn) => {
+    btn.onclick = () => {
+      const site = sites.find((s) => s.id === btn.dataset.editSite);
+      if (!site) return;
+      openModal(
+        'Export details — ' + (site.displayName || site.name),
+        `
+        <div class="form-grid">
+          <label class="field">Country<input id="f_country" value="${esc(site.country || '')}" /></label>
+          <label class="field">Registration #<input id="f_reg" value="${esc(site.registrationNumber || '')}" /></label>
+          <label class="field">Plant health origin
+            <select id="f_path">
+              <option value="registered_site"${site.pestPathway === 'registered_site' ? ' selected' : ''}>Registered production site</option>
+              <option value="pest_free_area"${site.pestPathway === 'pest_free_area' ? ' selected' : ''}>Pest-free area</option>
+              <option value="country_free"${site.pestPathway === 'country_free' ? ' selected' : ''}>Country recognized free</option>
+            </select>
+          </label>
+          <label class="field">Address / note<input id="f_addr" value="${esc(site.address || '')}" /></label>
+        </div>`,
+        async () => {
+          await api('/sites/' + site.id, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              country: val('f_country'),
+              registrationNumber: val('f_reg'),
+              pestPathway: val('f_path'),
+              address: val('f_addr'),
+            }),
+          });
+          toast('Saved');
+        }
+      );
+    };
+  });
+
   document.getElementById('addCycle').onclick = () => {
-    const opts = sites.map((s) => `<option value="${esc(s.id)}">${esc(s.code)} — ${esc(s.name)}</option>`).join('');
+    const opts = sites
+      .map((s) => `<option value="${esc(s.id)}">${esc(s.displayName || s.name)} — ${esc(s.cropName || '')}</option>`)
+      .join('');
+    const defaultCrop = sites[0]?.cropName || state.board.scope?.productLabel || '';
     openModal(
-      'Add crop cycle (ginger)',
+      'Add planting season',
       `
       <div class="form-grid">
-        <label class="field">Site<select id="f_site">${opts}</select></label>
-        <label class="field">Variety<input id="f_var" value="Ginger (Mariani)" /></label>
+        <label class="field">Place<select id="f_site">${opts || '<option value="">No places yet</option>'}</select></label>
+        <label class="field">Crop name<input id="f_var" value="${esc(defaultCrop)}" /></label>
         <label class="field">Plant date<input id="f_date" type="date" /></label>
-        <label class="field">Seed lot<input id="f_seed" /></label>
+        <label class="field">Seed lot (optional)<input id="f_seed" /></label>
       </div>`,
       async () => {
         await api('/cycles', {
@@ -403,7 +525,7 @@ function renderSites() {
             seedLotCode: val('f_seed'),
           }),
         });
-        toast('Crop cycle created');
+        toast('Planting season saved');
       }
     );
   };
@@ -414,28 +536,33 @@ function val(id) {
 }
 
 function renderHarvests() {
+  const sites = state.board.sites || [];
   const rows = (state.board.harvests || [])
-    .map(
-      (h) => `
+    .map((h) => {
+      const when = h.harvestedAt ? new Date(h.harvestedAt).toLocaleString() : '—';
+      return `
     <tr>
       <td><strong>${esc(h.code)}</strong></td>
+      <td>${esc(h.placeLabel || '—')}${h.greenhouseId || h.site?.greenhouseId ? ' <span class="scope-pill">ops</span>' : ''}</td>
+      <td>${esc(h.cropName || '—')}</td>
+      <td>${esc(when)}</td>
       <td>${statusBadge(h.status)}</td>
       <td>${esc(h.quantityKg ?? '—')} kg</td>
-      <td>remaining ${esc(h.remainingKg ?? '—')}</td>
+      <td>${esc(h.remainingKg ?? '—')} kg left</td>
       <td>${
         h.status === 'OPEN'
-          ? `<button class="btn btn-primary btn-sm" data-confirm="${esc(h.id)}">Confirm qty</button>`
+          ? `<button type="button" class="btn btn-primary btn-sm" data-confirm="${esc(h.id)}">Confirm kilos</button>`
           : ''
       }</td>
-    </tr>`
-    )
+    </tr>`;
+    })
     .join('');
 
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
         <h2>2. What you dug</h2>
-        <div class="meta">Open a harvest for a place, then confirm how many kilos.</div>
+        <div class="meta">Harvest is always from a place in step 1 (greenhouse from ops, or export-only place).</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addHarvest">+ Harvest</button>
@@ -443,40 +570,52 @@ function renderHarvests() {
     </div>
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th>Code</th><th>Status</th><th>Qty</th><th>Remaining</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5">No harvests</td></tr>'}</tbody>
+        <thead><tr><th>Harvest</th><th>Place</th><th>Crop</th><th>When</th><th>Status</th><th>Kilos</th><th>Left</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8">No harvests yet. Link a greenhouse (or add a place) in step 1, then add a harvest.</td></tr>'}</tbody>
       </table>
     </div>
   `;
 
   document.getElementById('addHarvest').onclick = async () => {
     const cycles = await api('/cycles');
-    const sites = state.board.sites;
+    if (!sites.length) {
+      toast('Add a place in step 1 first (use a greenhouse or export-only place)', 'error');
+      return;
+    }
     const siteOpts = sites
-      .map((s) => `<option value="${esc(s.id)}">${esc(s.code)} — ${esc(s.name)}</option>`)
+      .map(
+        (s) =>
+          `<option value="${esc(s.id)}">${esc(s.displayName || s.name)}${s.greenhouseId ? ' · from ops' : ' · export only'}</option>`
+      )
       .join('');
     const cycleOpts = cycles
       .map((c) => {
         const site = sites.find((x) => x.id === c.siteId);
-        return `<option value="${esc(c.id)}">${esc(c.code)} · ${esc(c.variety)} · ${esc(site?.code || '')}</option>`;
+        return `<option value="${esc(c.id)}" data-site="${esc(c.siteId)}">${esc(c.code)} · ${esc(c.variety)} · ${esc(site?.displayName || site?.name || '')}</option>`;
       })
       .join('');
+    const today = new Date().toISOString().slice(0, 10);
     openModal(
-      'Open harvest',
+      'Record harvest',
       `
       <div class="form-grid">
-        <label class="field">Site<select id="f_site">${siteOpts}</select></label>
-        <label class="field">Crop cycle<select id="f_cycle">${cycleOpts || '<option value="">No cycles yet</option>'}</select></label>
-        <label class="field">Supervisor<input id="f_sup" /></label>
+        <label class="field">Place (from step 1)<select id="f_site">${siteOpts}</select></label>
+        <label class="field">Planting season<select id="f_cycle">${cycleOpts || '<option value="">Add a planting season in step 1 first</option>'}</select></label>
+        <label class="field">Harvest date<input id="f_date" type="date" value="${esc(today)}" /></label>
+        <label class="field">Who recorded it<input id="f_sup" /></label>
       </div>
+      <p class="meta">After saving, use <strong>Confirm kilos</strong> on the row to enter weight.</p>
 `,
       async () => {
+        const dateVal = val('f_date');
+        const harvestedAt = dateVal ? new Date(dateVal + 'T12:00:00').toISOString() : undefined;
         await api('/harvests', {
           method: 'POST',
           body: JSON.stringify({
             siteId: val('f_site'),
             cycleId: val('f_cycle'),
             supervisor: val('f_sup'),
+            harvestedAt,
           }),
         });
         toast('Harvest opened');
@@ -487,14 +626,14 @@ function renderHarvests() {
   el.detail.querySelectorAll('[data-confirm]').forEach((btn) => {
     btn.onclick = () => {
       openModal(
-        'Confirm harvest quantity (kg)',
-        `<label class="field">Quantity kg<input id="f_qty" type="number" min="1" step="0.1" /></label>`,
+        'Confirm kilos dug',
+        `<label class="field">Kilos<input id="f_qty" type="number" min="1" step="0.1" /></label>`,
         async () => {
           await api('/harvests/' + btn.dataset.confirm + '/confirm', {
             method: 'POST',
             body: JSON.stringify({ quantityKg: Number(val('f_qty')) }),
           });
-          toast('Harvest confirmed');
+          toast('Harvest kilos saved');
         }
       );
     };

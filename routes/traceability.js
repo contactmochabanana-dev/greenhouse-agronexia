@@ -67,12 +67,20 @@ router.get(
 
 // ---------- Sites / cycles / harvests ----------
 router.get(
+  '/ops/greenhouses',
+  withDb((db) => domain.listOpsGreenhouses(db))
+);
+router.get(
   '/sites',
-  withDb((db) => db.sites)
+  withDb((db) => db.sites.map((s) => domain.enrichSite(db, s)))
 );
 router.post(
   '/sites',
   withDb((db, req) => domain.createSite(db, req.body || {}))
+);
+router.patch(
+  '/sites/:id',
+  withDb((db, req) => domain.updateSite(db, req.params.id, req.body || {}))
 );
 
 router.get(
@@ -86,7 +94,7 @@ router.post(
 
 router.get(
   '/harvests',
-  withDb((db) => db.harvests)
+  withDb((db) => db.harvests.map((h) => domain.enrichHarvest(db, h)))
 );
 router.post(
   '/harvests',
