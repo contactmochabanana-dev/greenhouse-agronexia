@@ -171,6 +171,10 @@ router.get(
   '/harvests',
   withDb((db) => db.harvests.map((h) => domain.enrichHarvest(db, h)))
 );
+router.get(
+  '/sites/:id/plants',
+  withDb((db, req) => domain.listOpsPlantsForExportSite(db, req.params.id))
+);
 router.post(
   '/harvests',
   withDb((db, req) => domain.createHarvest(db, req.body || {}))

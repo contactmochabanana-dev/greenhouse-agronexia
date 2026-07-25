@@ -175,7 +175,7 @@ function balancePanelHtml() {
         <strong>${esc(unacc)} kg</strong>
       </div>
       <div class="balance-item">
-        <span class="balance-label">Working on</span>
+        <span class="balance-label">Place</span>
         <strong>${place ? esc(place.displayName || place.name) : 'No place selected'}</strong>
       </div>
       <div class="balance-item">
@@ -204,8 +204,8 @@ function flowBannerHtml(step) {
             sel.reduce((s, h) => s + Number(h.unaccountedKg || 0), 0)
           )} kg not packed yet)`
         : step === 2
-          ? 'Tick harvest batches below, then continue to packing'
-          : '<span class="balance-warn">Select harvest batches in step 2</span>'
+          ? 'Tick dig batches below, then send to packing'
+          : '<span class="balance-warn">Select dig batches in step 2</span>'
     );
   }
   return `<div class="flow-banner">${lines.join(' · ')}</div>`;
@@ -337,7 +337,7 @@ function renderHowTo() {
     <div class="section" style="margin-top:0">
       <ol class="howto-steps">
         <li><strong>Where it grew</strong> — One list of places. Set up a greenhouse from ops for export (same place, not a second field), or add a place only for export. Then plant season and harvest from there.</li>
-        <li><strong>What you dug</strong> — Harvest from that same place: date and kilos. Tick batches that still have free kilos.</li>
+        <li><strong>How much you dug</strong> — Crop is already fixed. Pick which plants (one or many), date, and kilos. Tick dig batches for packing.</li>
         <li><strong>Packing lot</strong> — Create a packing lot from the selected harvest batches, fill boxes, put labels, then lock. Free kilos still not packed show as unaccounted.</li>
         <li><strong>Papers</strong> — Tick the countries you will export to. The list shows only the papers those places need. Upload each one.</li>
         <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
@@ -478,11 +478,11 @@ function renderSites() {
           <td>${esc(g.location || linked.address || '—')}</td>
           <td>Greenhouse ops</td>
           <td><span class="status CLEARED">Ready</span>${
-            active ? ' · <strong>Working here</strong>' : ''
+            active ? ' · <strong>Digging here</strong>' : ''
           }</td>
           <td>
             <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(linked.id)}">${
-              active ? 'Continue harvest' : 'Work here'
+              active ? 'Digging here' : 'Dig from here'
             }</button>
             <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(linked.id)}">Export details</button>
           </td>
@@ -513,11 +513,11 @@ function renderSites() {
         <td>${esc(s.address || '—')}</td>
         <td>Export only</td>
         <td><span class="status CLEARED">Ready</span>${
-          active ? ' · <strong>Working here</strong>' : ''
+          active ? ' · <strong>Digging here</strong>' : ''
         }</td>
         <td>
           <button type="button" class="btn btn-primary btn-sm" data-work-site="${esc(s.id)}">${
-            active ? 'Continue harvest' : 'Work here'
+            active ? 'Digging here' : 'Dig from here'
           }</button>
           <button type="button" class="btn btn-ghost btn-sm" data-edit-site="${esc(s.id)}">Export details</button>
         </td>
@@ -541,7 +541,7 @@ function renderSites() {
       <h3>Your places</h3>
       <p class="meta">
         Same greenhouse as in Greenhouse ops — not a second place.
-        <strong>Set up for export</strong> once, then <strong>Work here</strong> for harvest and packing.
+        <strong>Set up for export</strong> once, then <strong>Dig from here</strong>.
       </p>
       <div class="table-wrap">
         <table class="data">
@@ -570,7 +570,7 @@ function renderSites() {
   el.detail.querySelectorAll('[data-work-site]').forEach((btn) => {
     btn.onclick = () => {
       setActivePlace(btn.dataset.workSite);
-      toast('Now working from this place — go to harvest');
+      toast('Place selected — record how much you dug');
       state.view = 'harvests';
       syncNav();
       render();
@@ -744,6 +744,7 @@ function renderHarvests() {
       <td><strong>${esc(h.code)}</strong></td>
       <td>${esc(h.placeLabel || '—')}</td>
       <td>${esc(h.cropName || '—')}</td>
+      <td>${esc(h.plantCount || 0)}</td>
       <td>${esc(when)}</td>
       <td>${statusBadge(h.status)}</td>
       <td>${esc(h.totalKg ?? '—')} kg</td>
@@ -763,29 +764,29 @@ function renderHarvests() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>2. What you dug</h2>
-        <div class="meta">Harvest from the place you chose in step 1. Tick batches to send to packing.</div>
+        <h2>2. How much you dug</h2>
+        <div class="meta">Crop is fixed for this place. Pick which plants went into this dig, then kilos. Tick dig batches for packing.</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-primary btn-sm" id="addHarvest">+ Harvest</button>
+        <button class="btn btn-primary btn-sm" id="addHarvest">+ Dig batch</button>
         <button class="btn btn-secondary btn-sm" id="toPacking" ${
           selectedHarvests().length ? '' : 'disabled'
-        }>Continue to packing (${esc(selectedHarvests().length)})</button>
+        }>Send to packing (${esc(selectedHarvests().length)})</button>
       </div>
     </div>
     ${balancePanelHtml()}
     ${flowBannerHtml(2)}
     ${
       !place
-        ? `<p class="meta balance-warn">Select <strong>Work from here</strong> on a place in step 1 first. Harvest and packing continue from that place only.</p>`
+        ? `<p class="meta balance-warn">Choose <strong>Dig from here</strong> on a place in step 1 first.</p>`
         : ''
     }
     <div class="table-wrap">
       <table class="data">
-        <thead><tr><th>Pack?</th><th>Harvest batch</th><th>Place</th><th>Crop</th><th>When</th><th>Status</th><th>Dug</th><th>In lots</th><th>Not packed yet</th><th></th></tr></thead>
+        <thead><tr><th>Pack?</th><th>Dig batch</th><th>Place</th><th>Crop</th><th>Plants</th><th>When</th><th>Status</th><th>Kilos</th><th>In lots</th><th>Not packed yet</th><th></th></tr></thead>
         <tbody>${
           rows ||
-          '<tr><td colspan="10">No harvests for this place yet. Add a harvest, confirm kilos, then select the batch for packing.</td></tr>'
+          '<tr><td colspan="11">No dig batches for this place yet. Add a dig batch, pick plants, confirm kilos, then tick for packing.</td></tr>'
         }</tbody>
       </table>
     </div>
@@ -824,7 +825,7 @@ function renderHarvests() {
       return;
     }
     if (!state.activePlaceId) {
-      toast('Choose Work from here on a place in step 1 first', 'error');
+      toast('Choose Dig from here on a place in step 1 first', 'error');
       return;
     }
     const placeSites = sites.filter((s) => s.id === state.activePlaceId);
@@ -839,34 +840,140 @@ function renderHarvests() {
       })
       .join('');
     const today = new Date().toISOString().slice(0, 10);
+
+    let plantBlock = `
+      <p class="meta">This place is export-only (no plant list from ops). Record kilos after you create the dig batch.</p>`;
+    let freePlants = [];
+    try {
+      const plantInfo = await api('/sites/' + encodeURIComponent(state.activePlaceId) + '/plants');
+      if (plantInfo.linkedToOps) {
+        freePlants = (plantInfo.plants || []).filter((p) => !p.alreadyInBatch);
+        const taken = plantInfo.alreadyInBatch || 0;
+        const chips = freePlants
+          .slice(0, 200)
+          .map(
+            (p) =>
+              `<label class="plant-chip"><input type="checkbox" name="plantPick" value="${esc(
+                p.id
+              )}" data-num="${esc(p.number)}" /> #${esc(p.number)}</label>`
+          )
+          .join('');
+        plantBlock = `
+          <p class="meta">Crop is fixed. Choose plants for <strong>this dig batch</strong> (one plant or many).
+            Free: <strong>${esc(plantInfo.free)}</strong> · Already in another dig: <strong>${esc(taken)}</strong></p>
+          <div class="form-grid">
+            <label class="field">From plant #<input id="f_from" type="number" min="1" placeholder="e.g. 1" /></label>
+            <label class="field">To plant #<input id="f_to" type="number" min="1" placeholder="e.g. 50" /></label>
+          </div>
+          <div class="plant-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btnRange">Select range</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAllFree">Select all free</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnClearPlants">Clear</button>
+            <span class="meta" id="plantPickCount">0 selected</span>
+          </div>
+          <div class="plant-grid" id="plantGrid">${chips || '<span class="meta">No free plants left</span>'}</div>
+          ${
+            freePlants.length > 200
+              ? `<p class="meta">Showing first 200 free plants — use the number range for larger batches.</p>`
+              : ''
+          }`;
+      }
+    } catch {
+      /* keep export-only message */
+    }
+
     openModal(
-      'Record harvest',
+      'New dig batch — how much',
       `
       <div class="form-grid">
         <label class="field">Place<select id="f_site">${siteOpts}</select></label>
         <label class="field">Planting season<select id="f_cycle">${
           cycleOpts || '<option value="">Add planting season in step 1 first</option>'
         }</select></label>
-        <label class="field">Harvest date<input id="f_date" type="date" value="${esc(today)}" /></label>
+        <label class="field">Dig date<input id="f_date" type="date" value="${esc(today)}" /></label>
         <label class="field">Who recorded it<input id="f_sup" /></label>
       </div>
-      <p class="meta">Then confirm kilos on the row. Tick the batch to send it to packing.</p>
+      <div class="section" style="margin-top:12px">
+        <h3 style="margin:0 0 8px;font-size:0.95rem">Which plants?</h3>
+        ${plantBlock}
+      </div>
+      <p class="meta">After save, confirm total kilos on the row. Then tick the dig batch for packing.</p>
 `,
       async () => {
         const dateVal = val('f_date');
         const harvestedAt = dateVal ? new Date(dateVal + 'T12:00:00').toISOString() : undefined;
+        const picked = [...document.querySelectorAll('input[name="plantPick"]:checked')].map(
+          (el) => el.value
+        );
+        const fromN = val('f_from');
+        const toN = val('f_to');
+        const body = {
+          siteId: val('f_site'),
+          cycleId: val('f_cycle'),
+          supervisor: val('f_sup'),
+          harvestedAt,
+          plantIds: picked,
+          requirePlants: freePlants.length > 0,
+        };
+        if (!picked.length && fromN && toN) {
+          body.fromNumber = Number(fromN);
+          body.toNumber = Number(toN);
+          delete body.plantIds;
+        }
         await api('/harvests', {
           method: 'POST',
-          body: JSON.stringify({
-            siteId: val('f_site'),
-            cycleId: val('f_cycle'),
-            supervisor: val('f_sup'),
-            harvestedAt,
-          }),
+          body: JSON.stringify(body),
         });
-        toast('Harvest opened');
+        toast('Dig batch created');
       }
     );
+
+    // Wire plant pick helpers after modal opens
+    setTimeout(() => {
+      const countEl = document.getElementById('plantPickCount');
+      const updateCount = () => {
+        if (!countEl) return;
+        const n = document.querySelectorAll('input[name="plantPick"]:checked').length;
+        countEl.textContent = n + ' selected';
+      };
+      document.querySelectorAll('input[name="plantPick"]').forEach((el) => {
+        el.addEventListener('change', updateCount);
+      });
+      const btnAll = document.getElementById('btnAllFree');
+      if (btnAll) {
+        btnAll.onclick = () => {
+          document.querySelectorAll('input[name="plantPick"]').forEach((el) => {
+            el.checked = true;
+          });
+          updateCount();
+        };
+      }
+      const btnClear = document.getElementById('btnClearPlants');
+      if (btnClear) {
+        btnClear.onclick = () => {
+          document.querySelectorAll('input[name="plantPick"]').forEach((el) => {
+            el.checked = false;
+          });
+          updateCount();
+        };
+      }
+      const btnRange = document.getElementById('btnRange');
+      if (btnRange) {
+        btnRange.onclick = () => {
+          const fromN = Number(val('f_from'));
+          const toN = Number(val('f_to'));
+          if (!(fromN > 0) || !(toN >= fromN)) {
+            toast('Enter a valid plant number range', 'error');
+            return;
+          }
+          document.querySelectorAll('input[name="plantPick"]').forEach((el) => {
+            const num = Number(el.dataset.num);
+            el.checked = num >= fromN && num <= toN;
+          });
+          updateCount();
+        };
+      }
+    }, 0);
   };
 
   el.detail.querySelectorAll('[data-confirm]').forEach((btn) => {
