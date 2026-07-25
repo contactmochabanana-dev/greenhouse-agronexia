@@ -84,17 +84,6 @@ el.nav.addEventListener('click', (e) => {
 });
 
 document.getElementById('btnRefresh').addEventListener('click', () => refresh());
-document.getElementById('btnSeed').addEventListener('click', async () => {
-  if (!confirm('Replace export data with the sample dataset (full working records)?')) return;
-  try {
-    const r = await api('/seed', { method: 'POST', body: '{}' });
-    const shipped = r.result?.shippedTlc || r.seed?.shippedTlc || '';
-    toast(shipped ? 'Sample data loaded: shipped ' + shipped : 'Sample data loaded');
-    await refresh();
-  } catch (e) {
-    toast(e.message, 'error');
-  }
-});
 
 async function refresh() {
   state.board = await api('/board');
@@ -255,7 +244,7 @@ function renderBoard() {
       <div class="table-wrap">
         <table class="data">
           <thead><tr><th>TLC</th><th>Status</th><th>Grade / program</th><th>Packed</th><th>Allocated</th></tr></thead>
-          <tbody>${tlcRows || '<tr><td colspan="5">No TLCs yet. Load sample data or create a site → harvest → TLC.</td></tr>'}</tbody>
+          <tbody>${tlcRows || '<tr><td colspan="5">No TLCs yet. Create a site → harvest → export batch.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
