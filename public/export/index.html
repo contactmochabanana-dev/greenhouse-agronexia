@@ -15,7 +15,7 @@
       <img class="brand-mark" src="/assets/brand/agronexia-mark.svg" width="36" height="36" alt="" />
       <span class="brand-text" style="display:flex;flex-direction:column;gap:2px">
         <span class="brand-name">Agronexia</span>
-        <span class="brand-sub" style="font-size:0.72rem;color:var(--text-muted)">Export Traceability dashboard</span>
+        <span class="brand-sub" style="font-size:0.72rem;color:var(--text-muted)">Follow the crop from field to truck</span>
       </span>
     </a>
     <div class="topbar-actions">
@@ -29,7 +29,7 @@
 
   <div class="scope-banner">
     <div class="scope-banner-inner" id="scopeBanner">
-      <strong>Export for:</strong>
+      <strong>Crop:</strong>
       <span class="scope-pill">…</span>
     </div>
   </div>
@@ -37,16 +37,41 @@
   <main class="layout">
     <section class="panel panel-list">
       <div class="panel-header">
-        <h2>Workspace</h2>
+        <h2>Do this in order</h2>
       </div>
       <ul class="nav-list" id="navList">
-        <li class="nav-item active" data-view="board"><div class="title">Board</div><div class="sub">Lots &amp; shipments</div></li>
-        <li class="nav-item" data-view="sites"><div class="title">Sites &amp; cycles</div><div class="sub">Production blocks</div></li>
-        <li class="nav-item" data-view="harvests"><div class="title">Harvests</div><div class="sub">Confirm quantities</div></li>
-        <li class="nav-item" data-view="tlcs"><div class="title">Export batches</div><div class="sub">Pack · labels · lock</div></li>
-        <li class="nav-item" data-view="shipments"><div class="title">Shipments</div><div class="sub">Clearance · ship · pack</div></li>
-        <li class="nav-item" data-view="recall"><div class="title">Recall</div><div class="sub">Trace by case or lot</div></li>
-        <li class="nav-item" data-view="docs"><div class="title">Documents &amp; certs</div><div class="sub">Labs · certificates</div></li>
+        <li class="nav-item" data-view="howto">
+          <div class="title">How it works</div>
+          <div class="sub">Simple picture of the whole path</div>
+        </li>
+        <li class="nav-item" data-view="sites">
+          <div class="title">1. Where it grew</div>
+          <div class="sub">Name the field / greenhouse block</div>
+        </li>
+        <li class="nav-item" data-view="harvests">
+          <div class="title">2. What you dug</div>
+          <div class="sub">Write harvest date and kilos</div>
+        </li>
+        <li class="nav-item" data-view="tlcs">
+          <div class="title">3. Packing lot</div>
+          <div class="sub">Make a lot, pack boxes, lock</div>
+        </li>
+        <li class="nav-item" data-view="docs">
+          <div class="title">4. Papers</div>
+          <div class="sub">Lab reports and certificates</div>
+        </li>
+        <li class="nav-item" data-view="shipments">
+          <div class="title">5. Load the truck</div>
+          <div class="sub">Buyer, destination, ship</div>
+        </li>
+        <li class="nav-item active" data-view="board">
+          <div class="title">Overview</div>
+          <div class="sub">See all lots and loads</div>
+        </li>
+        <li class="nav-item" data-view="recall">
+          <div class="title">Find a box later</div>
+          <div class="sub">Type lot or box code</div>
+        </li>
       </ul>
     </section>
 

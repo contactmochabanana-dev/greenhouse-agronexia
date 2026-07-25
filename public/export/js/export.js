@@ -166,7 +166,7 @@ function renderScope(scope) {
     (scope.productNames && scope.productNames.length ? scope.productNames.join(' · ') : null) ||
     '—';
   el.scopeBanner.innerHTML = `
-    <strong>Export for:</strong>
+    <strong>Crop:</strong>
     <span class="scope-pill">${esc(product)}</span>
   `;
 }
@@ -196,6 +196,7 @@ function render() {
     return;
   }
   const v = state.view;
+  if (v === 'howto') return renderHowTo();
   if (v === 'board') return renderBoard();
   if (v === 'sites') return renderSites();
   if (v === 'harvests') return renderHarvests();
@@ -203,6 +204,35 @@ function render() {
   if (v === 'shipments') return renderShipments();
   if (v === 'recall') return renderRecall();
   if (v === 'docs') return renderDocs();
+}
+
+function renderHowTo() {
+  el.detail.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <h2>How export tracking works</h2>
+        <div class="meta">One path from the field to the truck — do the steps in order</div>
+      </div>
+    </div>
+    <div class="section" style="margin-top:0">
+      <ol class="howto-steps">
+        <li><strong>Where it grew</strong> — Name each greenhouse block or field (and the planting season).</li>
+        <li><strong>What you dug</strong> — On harvest day, write how many kilos you took from that place.</li>
+        <li><strong>Packing lot</strong> — Make one packing lot from that harvest, fill boxes, put labels, then lock the lot so numbers cannot be quietly changed.</li>
+        <li><strong>Papers</strong> — Add lab reports (safe food) and farm certificates (like GLOBALG.A.P.). Download anytime.</li>
+        <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
+        <li><strong>Find a box later</strong> — If someone asks “where did this box come from?”, type the lot or box code.</li>
+      </ol>
+      <p class="meta" style="margin-top:16px">
+        The left menu is the same path. <strong>Overview</strong> shows everything you already made.
+        Papers and packing are both needed before a careful buyer/export path can clear.
+      </p>
+      <p class="meta">
+        There is no separate “certificate app.” Certificates live under <strong>4. Papers</strong> on this same Export screen.
+        The phone Export app (if you use it) only talks to this same list — it does not keep its own certificates.
+      </p>
+    </div>
+  `;
 }
 
 function renderBoard() {
@@ -214,8 +244,8 @@ function renderBoard() {
       <td><strong>${esc(t.code)}</strong></td>
       <td>${statusBadge(t.status)}</td>
       <td>${esc(t.grade)} · ${esc(t.program)}</td>
-      <td>${esc(t.packedQtyKg)} kg · ${esc(t.caseCount)} cases</td>
-      <td>${esc(t.allocatedKg)} kg alloc</td>
+      <td>${esc(t.packedQtyKg)} kg · ${esc(t.caseCount)} boxes</td>
+      <td>${esc(t.allocatedKg)} kg from harvest</td>
     </tr>`
     )
     .join('');
@@ -235,25 +265,25 @@ function renderBoard() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Export board</h2>
-        <div class="meta">Export lots and consignments</div>
+        <h2>Overview</h2>
+        <div class="meta">All packing lots and truck loads in one place</div>
       </div>
     </div>
     <div class="section">
-      <h3>TLCs (export batches)</h3>
+      <h3>Packing lots</h3>
       <div class="table-wrap">
         <table class="data">
-          <thead><tr><th>TLC</th><th>Status</th><th>Grade / program</th><th>Packed</th><th>Allocated</th></tr></thead>
-          <tbody>${tlcRows || '<tr><td colspan="5">No TLCs yet. Create a site → harvest → export batch.</td></tr>'}</tbody>
+          <thead><tr><th>Lot</th><th>Status</th><th>Grade</th><th>Packed</th><th>From harvest</th></tr></thead>
+          <tbody>${tlcRows || '<tr><td colspan="5">No packing lots yet. Start with step 1 — Where it grew.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
     <div class="section">
-      <h3>Shipments</h3>
+      <h3>Truck loads</h3>
       <div class="table-wrap">
         <table class="data">
-          <thead><tr><th>Code</th><th>Status</th><th>Destination</th><th>Consignee</th><th>Lots</th></tr></thead>
-          <tbody>${shipRows || '<tr><td colspan="5">No shipments yet.</td></tr>'}</tbody>
+          <thead><tr><th>Load</th><th>Status</th><th>Where going</th><th>Buyer</th><th>Lots</th></tr></thead>
+          <tbody>${shipRows || '<tr><td colspan="5">No loads yet. Make a packing lot first, then step 5 — Load the truck.</td></tr>'}</tbody>
         </table>
       </div>
     </div>
@@ -301,8 +331,8 @@ function renderSites() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Production sites</h2>
-        <div class="meta">Production sites used for export lots</div>
+        <h2>1. Where it grew</h2>
+        <div class="meta">Name each block or field. Add a planting season (cycle) for that place.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addSite">+ Site</button>
@@ -404,8 +434,8 @@ function renderHarvests() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Harvests</h2>
-        <div class="meta">Harvests linked to production sites</div>
+        <h2>2. What you dug</h2>
+        <div class="meta">Open a harvest for a place, then confirm how many kilos.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addHarvest">+ Harvest</button>
@@ -490,8 +520,8 @@ function renderTlcs() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Export batches</h2>
-        <div class="meta">Lots created at packing, labeled on cases</div>
+        <h2>3. Packing lot</h2>
+        <div class="meta">Join harvest kilos into one lot, pack boxes, print labels, then lock.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addTlc">+ TLC</button>
@@ -723,8 +753,8 @@ function renderShipments() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Shipments</h2>
-        <div class="meta">Outbound consignments and clearance</div>
+        <h2>5. Load the truck</h2>
+        <div class="meta">Pick buyer and country. Add packing lot. When checks pass, lock and ship.</div>
       </div>
       <div class="detail-actions">
         <button class="btn btn-primary btn-sm" id="addShip">+ Shipment</button>
@@ -971,8 +1001,8 @@ function renderRecall() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Recall run</h2>
-        <div class="meta">Real query over genealogy — case code or TLC code</div>
+        <h2>Find a box later</h2>
+        <div class="meta">Type a box code or packing-lot code to see where it came from.</div>
       </div>
     </div>
     <div class="form-grid">
@@ -1025,23 +1055,23 @@ async function renderDocs() {
   el.detail.innerHTML = `
     <div class="detail-header">
       <div>
-        <h2>Documents & certifications</h2>
-        <div class="meta">Download certificates and supporting files</div>
+        <h2>4. Papers</h2>
+        <div class="meta">Lab results and farm certificates. Same place for everyone — no separate cert app.</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-secondary btn-sm" id="addGap">+ GLOBALG.A.P. cert</button>
-        <button class="btn btn-secondary btn-sm" id="addDoc">+ Document</button>
+        <button class="btn btn-secondary btn-sm" id="addGap">+ Farm certificate</button>
+        <button class="btn btn-secondary btn-sm" id="addDoc">+ Lab or paper</button>
       </div>
     </div>
     <div class="section" style="margin-top:0">
-      <h3>Documents</h3>
+      <h3>Lab reports & shipping papers</h3>
       <div class="table-wrap"><table class="data">
         <thead><tr><th>Type</th><th>Number</th><th>Result</th><th>File</th><th>Link</th><th></th></tr></thead>
         <tbody>${docRows || '<tr><td colspan="6">None</td></tr>'}</tbody>
       </table></div>
     </div>
     <div class="section">
-      <h3>Certifications</h3>
+      <h3>Farm certificates (e.g. GLOBALG.A.P.)</h3>
       <div class="table-wrap"><table class="data">
         <thead><tr><th>Scheme</th><th>Number</th><th>Validity</th><th>File</th><th></th></tr></thead>
         <tbody>${certRows || '<tr><td colspan="5">None</td></tr>'}</tbody>

@@ -590,3 +590,18 @@ label.field textarea:focus {
   margin: 0;
   font-weight: 600;
 }
+
+.howto-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.howto-steps li strong {
+  color: var(--primary-dark);
+}
