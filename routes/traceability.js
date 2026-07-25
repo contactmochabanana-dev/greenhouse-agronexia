@@ -3,7 +3,12 @@ const path = require('path');
 const fs = require('fs');
 const store = require('../lib/traceStore');
 const domain = require('../lib/traceability/domain');
-const { listProfiles, GATE_CATALOG } = require('../lib/traceability/profiles');
+const {
+  listProfiles,
+  GATE_CATALOG,
+  listExportDestinations,
+  papersRequiredForDestinations,
+} = require('../lib/traceability/profiles');
 const { seedFresh } = require('../lib/traceability/seed');
 const { packsDir } = require('../lib/traceStore');
 
@@ -49,6 +54,76 @@ router.get(
 
 router.get('/profiles', (_req, res) => {
   res.json({ profiles: listProfiles(), gateCatalog: GATE_CATALOG });
+});
+
+router.get('/destinations', (_req, res) => {
+  res.json({ destinations: listExportDestinations() });
+});
+
+/** Required papers checklist for one or more export destinations (query: ?markets=EU,US). */
+router.get('/papers/required', (req, res) => {
+  try {
+    const db = store.load();
+    const raw = String(req.query.markets || req.query.destinations || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const { destinations, papers } = papersRequiredForDestinations(raw);
+    const docs = db.documents || [];
+    const certs = db.certifications || [];
+    const now = new Date();
+    const checklist = papers.map((p) => {
+      let status = 'missing';
+      let match = null;
+      if (p.kind === 'certification') {
+        match =
+          certs.find((c) => {
+            if (c.scheme !== p.scheme) return false;
+            const from = c.validFrom ? new Date(c.validFrom) : null;
+            const to = c.validTo ? new Date(c.validTo) : null;
+            if (from && now < from) return false;
+            if (to && now > to) return false;
+            return true;
+          }) || null;
+        if (match) status = 'ready';
+      } else {
+        const candidates = docs.filter((d) => d.type === p.type);
+        if (p.needsResult) {
+          match = candidates.find((d) => d.result === 'pass') || candidates[0] || null;
+          status = match?.result === 'pass' ? 'ready' : match ? 'uploaded' : 'missing';
+        } else if (p.type === 'PHYTO') {
+          match =
+            candidates.find((d) => d.number && d.additionalDeclaration) ||
+            candidates[0] ||
+            null;
+          status =
+            match?.number && match?.additionalDeclaration
+              ? 'ready'
+              : match
+                ? 'uploaded'
+                : 'missing';
+        } else {
+          match = candidates[0] || null;
+          status = match ? 'ready' : 'missing';
+        }
+      }
+      return {
+        ...p,
+        status,
+        recordId: match?.id || null,
+        downloadUrl: match
+          ? p.kind === 'certification'
+            ? `/api/traceability/certifications/${match.id}/download`
+            : `/api/traceability/documents/${match.id}/download`
+          : null,
+        fileName: match?.fileName || null,
+        number: match?.number || null,
+      };
+    });
+    res.json({ destinations, checklist });
+  } catch (err) {
+    sendErr(res, err);
+  }
 });
 
 router.post('/seed', (req, res) => {

@@ -650,3 +650,31 @@ label.field textarea:focus {
 table.data tr.row-active td {
   background: var(--primary-soft);
 }
+
+.dest-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.dest-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.dest-check:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.dest-check input {
+  margin-top: 3px;
+}

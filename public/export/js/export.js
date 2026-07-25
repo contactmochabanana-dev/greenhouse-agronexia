@@ -339,7 +339,7 @@ function renderHowTo() {
         <li><strong>Where it grew</strong> — Prefer a greenhouse from <strong>Greenhouse ops</strong>, or add an export-only place. Then add a planting season.</li>
         <li><strong>What you dug</strong> — Harvest from that same place: date and kilos. Tick batches that still have free kilos.</li>
         <li><strong>Packing lot</strong> — Create a packing lot from the selected harvest batches, fill boxes, put labels, then lock. Free kilos still not packed show as unaccounted.</li>
-        <li><strong>Papers</strong> — Add lab reports (safe food) and farm certificates (like GLOBALG.A.P.). Download anytime.</li>
+        <li><strong>Papers</strong> — Tick the countries you will export to. The list shows only the papers those places need. Upload each one.</li>
         <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
         <li><strong>Find a box later</strong> — If someone asks “where did this box come from?”, type the lot or box code.</li>
       </ol>
@@ -1446,30 +1446,29 @@ function renderRecall() {
 }
 
 async function renderDocs() {
-  const [docs, certs] = await Promise.all([api('/documents'), api('/certifications')]);
-  const docRows = docs
+  const savedMarkets = Array.isArray(loadFlow().paperMarkets) ? loadFlow().paperMarkets : [];
+  let destinations = [];
+  try {
+    const d = await api('/destinations');
+    destinations = d.destinations || [];
+  } catch {
+    destinations = [
+      { id: 'EU', label: 'European Union' },
+      { id: 'US', label: 'United States' },
+      { id: 'GCC', label: 'Gulf (UAE, Saudi Arabia, etc.)' },
+      { id: 'OTHER', label: 'Other country' },
+    ];
+  }
+
+  const marketChecks = destinations
     .map(
-      (d) =>
-        `<tr>
-          <td>${esc(d.type)}</td>
-          <td>${esc(d.number)}</td>
-          <td>${esc(d.result || '—')}</td>
-          <td>${esc(d.fileName || '—')}</td>
-          <td>${esc(d.number ? '' : '')}${d.tlcId || d.shipmentId ? 'Linked' : '—'}</td>
-          <td><a class="btn btn-secondary btn-sm" href="${esc(d.downloadUrl || '/api/traceability/documents/' + d.id + '/download')}" download>Download</a></td>
-        </tr>`
-    )
-    .join('');
-  const certRows = certs
-    .map(
-      (c) =>
-        `<tr>
-          <td>${esc(c.scheme)}</td>
-          <td>${esc(c.number)}</td>
-          <td>${esc(c.validFrom)} → ${esc(c.validTo)}</td>
-          <td>${esc(c.fileName || '—')}</td>
-          <td><a class="btn btn-secondary btn-sm" href="${esc(c.downloadUrl || '/api/traceability/certifications/' + c.id + '/download')}" download>Download</a></td>
-        </tr>`
+      (d) => `
+    <label class="dest-check">
+      <input type="checkbox" name="paperMarket" value="${esc(d.id)}" ${
+        savedMarkets.includes(d.id) ? 'checked' : ''
+      } />
+      <span>${esc(d.label)}</span>
+    </label>`
     )
     .join('');
 
@@ -1477,101 +1476,172 @@ async function renderDocs() {
     <div class="detail-header">
       <div>
         <h2>4. Papers</h2>
-        <div class="meta">Lab results and farm certificates. Same place for everyone — no separate cert app.</div>
-      </div>
-      <div class="detail-actions">
-        <button class="btn btn-secondary btn-sm" id="addGap">+ Farm certificate</button>
-        <button class="btn btn-secondary btn-sm" id="addDoc">+ Lab or paper</button>
+        <div class="meta">First pick where you will sell. Then upload only the papers that place needs.</div>
       </div>
     </div>
+    ${balancePanelHtml()}
     <div class="section" style="margin-top:0">
-      <h3>Lab reports & shipping papers</h3>
-      <div class="table-wrap"><table class="data">
-        <thead><tr><th>Type</th><th>Number</th><th>Result</th><th>File</th><th>Link</th><th></th></tr></thead>
-        <tbody>${docRows || '<tr><td colspan="6">None</td></tr>'}</tbody>
-      </table></div>
+      <h3>Where are you exporting? (pick one or more)</h3>
+      <div class="dest-grid">${marketChecks}</div>
+      <button type="button" class="btn btn-primary btn-sm" id="showPaperList" style="margin-top:12px">Show papers needed</button>
     </div>
-    <div class="section">
-      <h3>Farm certificates (e.g. GLOBALG.A.P.)</h3>
-      <div class="table-wrap"><table class="data">
-        <thead><tr><th>Scheme</th><th>Number</th><th>Validity</th><th>File</th><th></th></tr></thead>
-        <tbody>${certRows || '<tr><td colspan="5">None</td></tr>'}</tbody>
-      </table></div>
+    <div class="section" id="paperChecklistWrap">
+      <p class="meta">Select at least one country / market above, then press <strong>Show papers needed</strong>.</p>
     </div>
   `;
 
-  document.getElementById('addGap').onclick = () => {
-    openModal(
-      'Add GLOBALG.A.P.',
-      `<div class="form-grid">
-        <label class="field">Number<input id="f_n" /></label>
-        <label class="field">GGN<input id="f_g" /></label>
-        <label class="field">Valid from<input id="f_from" type="date" /></label>
-        <label class="field">Valid to<input id="f_to" type="date" /></label>
-        <label class="field">Upload file (optional)<input id="f_file" type="file" /></label>
-      </div>`,
-      async () => {
-        const filePayload = await readFileInputAsBase64('f_file');
+  async function loadChecklist() {
+    const markets = [...document.querySelectorAll('input[name="paperMarket"]:checked')].map(
+      (el) => el.value
+    );
+    saveFlow({ paperMarkets: markets });
+    const wrap = document.getElementById('paperChecklistWrap');
+    if (!markets.length) {
+      wrap.innerHTML =
+        '<p class="meta balance-warn">Tick where you will export, then show the list.</p>';
+      return;
+    }
+    wrap.innerHTML = '<p class="meta">Loading list…</p>';
+    try {
+      const data = await api('/papers/required?markets=' + encodeURIComponent(markets.join(',')));
+      const rows = (data.checklist || [])
+        .map((p) => {
+          const statusLabel =
+            p.status === 'ready' ? 'Ready' : p.status === 'uploaded' ? 'Uploaded' : 'Needed';
+          const statusClass =
+            p.status === 'ready' ? 'pass' : p.status === 'uploaded' ? 'OPEN_PACKING' : 'fail';
+          return `
+          <tr>
+            <td><strong>${esc(p.title)}</strong><br><span class="meta">${esc(p.help || '')}</span></td>
+            <td>${esc((p.requiredFor || []).join(', '))}</td>
+            <td><span class="status ${statusClass}">${esc(statusLabel)}</span></td>
+            <td>${esc(p.fileName || p.number || '—')}</td>
+            <td>
+              <button type="button" class="btn btn-primary btn-sm" data-upload-paper="${esc(p.key)}">Upload</button>
+              ${
+                p.downloadUrl
+                  ? `<a class="btn btn-secondary btn-sm" href="${esc(p.downloadUrl)}" download>Download</a>`
+                  : ''
+              }
+            </td>
+          </tr>`;
+        })
+        .join('');
+      wrap.innerHTML = `
+        <h3>Papers needed for: ${esc((data.destinations || []).map((d) => d.label).join(', '))}</h3>
+        <p class="meta">Upload each paper. Green “Ready” means it is on file for export checks.</p>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Paper</th><th>Needed for</th><th>Status</th><th>File</th><th></th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5">No papers listed</td></tr>'}</tbody>
+          </table>
+        </div>`;
+      wrap.querySelectorAll('[data-upload-paper]').forEach((btn) => {
+        btn.onclick = () => openPaperUpload(btn.dataset.uploadPaper, data.checklist);
+      });
+    } catch (e) {
+      wrap.innerHTML = `<p class="meta balance-warn">${esc(e.message)}</p>`;
+    }
+  }
+
+  document.getElementById('showPaperList').onclick = () => loadChecklist();
+  if (savedMarkets.length) loadChecklist();
+}
+
+function openPaperUpload(paperKey, checklist) {
+  const paper = (checklist || []).find((p) => p.key === paperKey);
+  if (!paper) return;
+  const lots = (state.board?.tlcs || [])
+    .map((t) => `<option value="${esc(t.id)}">${esc(t.code)} · ${esc(t.placeLabel || '')}</option>`)
+    .join('');
+  const ships = (state.board?.shipments || [])
+    .map((s) => `<option value="${esc(s.id)}">${esc(s.code)} · ${esc(s.consigneeName || '')}</option>`)
+    .join('');
+  const today = new Date().toISOString().slice(0, 10);
+  const yearEnd = `${new Date().getFullYear() + 1}-12-31`;
+
+  let extraFields = '';
+  if (paper.kind === 'certification') {
+    extraFields = `
+      <label class="field">Certificate number<input id="f_n" required /></label>
+      <label class="field">GGN (if any)<input id="f_g" /></label>
+      <label class="field">Valid from<input id="f_from" type="date" value="${esc(today)}" /></label>
+      <label class="field">Valid to<input id="f_to" type="date" value="${esc(yearEnd)}" /></label>`;
+  } else {
+    extraFields = `
+      <label class="field">Document number<input id="f_n" placeholder="Lab or certificate number" /></label>
+      ${
+        paper.needsResult
+          ? `<label class="field">Result
+              <select id="f_res"><option value="pass">Passed</option><option value="fail">Failed</option></select>
+            </label>`
+          : ''
+      }
+      ${
+        paper.needsAd
+          ? `<label class="field">Extra statement (if on the paper)<input id="f_ad" placeholder="Plant health statement if any" /></label>`
+          : ''
+      }
+      ${
+        paper.link === 'lot' || paper.link === 'lot_or_site'
+          ? `<label class="field">Packing lot (optional)<select id="f_tlc"><option value="">—</option>${lots}</select></label>`
+          : ''
+      }
+      ${
+        paper.link === 'shipment'
+          ? `<label class="field">Truck load (optional)<select id="f_ship"><option value="">—</option>${ships}</select></label>`
+          : ''
+      }`;
+  }
+
+  openModal(
+    'Upload: ' + paper.title,
+    `
+    <p class="meta" style="margin:0 0 12px">${esc(paper.help || '')}</p>
+    <div class="form-grid">
+      ${extraFields}
+      <label class="field">Upload file<input id="f_file" type="file" /></label>
+    </div>`,
+    async () => {
+      const filePayload = await readFileInputAsBase64('f_file');
+      if (paper.kind === 'certification') {
         await api('/certifications', {
           method: 'POST',
           body: JSON.stringify({
-            scheme: 'GLOBALG.A.P.',
-            number: val('f_n'),
+            scheme: paper.scheme,
+            number: val('f_n') || paper.scheme + '-' + Date.now(),
             ggn: val('f_g'),
-            validFrom: val('f_from'),
-            validTo: val('f_to'),
-            scope: 'Fresh ginger rhizome',
-            fileName: filePayload?.fileName,
+            validFrom: val('f_from') || today,
+            validTo: val('f_to') || yearEnd,
+            scope: state.board?.scope?.productLabel || 'Export crop',
+            fileName: filePayload?.fileName || paper.scheme + '.txt',
             fileContentBase64: filePayload?.base64,
           }),
         });
-        toast('Cert stored — downloadable');
-      }
-    );
-  };
-
-  document.getElementById('addDoc').onclick = () => {
-    openModal(
-      'Add document',
-      `<div class="form-grid">
-        <label class="field">Type
-          <select id="f_type">
-            <option value="MRL_LAB">MRL_LAB</option>
-            <option value="RALSTONIA_LAB">RALSTONIA_LAB</option>
-            <option value="PHYTO">PHYTO</option>
-            <option value="INVOICE">INVOICE</option>
-            <option value="PACKING_LIST">PACKING_LIST</option>
-            <option value="COO">COO</option>
-            <option value="OTHER">OTHER</option>
-          </select>
-        </label>
-        <label class="field">Number<input id="f_n" /></label>
-        <label class="field">Result
-          <select id="f_res"><option value="">—</option><option value="pass">pass</option><option value="fail">fail</option></select>
-        </label>
-        <label class="field">TLC id (optional)<input id="f_tlc" /></label>
-        <label class="field">Shipment id (optional)<input id="f_ship" /></label>
-        <label class="field">Upload file (optional)<input id="f_file" type="file" /></label>
-      </div>
-`,
-      async () => {
-        const filePayload = await readFileInputAsBase64('f_file');
+      } else {
         await api('/documents', {
           method: 'POST',
           body: JSON.stringify({
-            type: val('f_type'),
-            number: val('f_n'),
-            result: val('f_res') || null,
+            type: paper.type,
+            number: val('f_n') || paper.type + '-' + Date.now(),
+            result: paper.needsResult ? val('f_res') || 'pass' : null,
+            additionalDeclaration: paper.needsAd ? val('f_ad') : '',
             tlcId: val('f_tlc') || null,
             shipmentId: val('f_ship') || null,
-            fileName: filePayload?.fileName,
+            fileName: filePayload?.fileName || paper.type + '.txt',
             fileContentBase64: filePayload?.base64,
+            labName: paper.needsResult ? 'Lab' : '',
+            sampleDate: paper.needsResult ? today : null,
           }),
         });
-        toast('Document stored — downloadable');
       }
-    );
-  };
+      toast('Paper saved');
+      await refresh();
+      state.view = 'docs';
+      syncNav();
+      renderDocs();
+    }
+  );
 }
 
 function readFileInputAsBase64(inputId) {
