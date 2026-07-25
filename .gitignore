@@ -1,5 +1,8 @@
 node_modules/
 data/db.json
+data/export-db.json
+data/export-packs/
+data/greenhouse-a.json
 .env
 
 .claude/

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Export Traceability — Agronexia</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/agronexia-mark.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/export/css/export.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Agronexia home">
+      <img class="brand-mark" src="/assets/brand/agronexia-mark.svg" width="36" height="36" alt="" />
+      <span class="brand-text" style="display:flex;flex-direction:column;gap:2px">
+        <span class="brand-name">Agronexia</span>
+        <span class="brand-sub" style="font-size:0.72rem;color:var(--text-muted)">Export Traceability dashboard</span>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <div class="dash-switch" role="navigation" aria-label="Switch dashboard">
+        <a class="dash-switch-item" href="/">Greenhouse ops</a>
+        <a class="dash-switch-item is-active" href="/export/" aria-current="page">Export Traceability</a>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" id="btnSeed">Load sample data</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRefresh">Refresh</button>
+    </div>
+  </header>
+
+  <div class="scope-banner">
+    <div class="scope-banner-inner" id="scopeBanner">
+      <strong>Export for:</strong>
+      <span class="scope-pill">…</span>
+    </div>
+  </div>
+
+  <main class="layout">
+    <section class="panel panel-list">
+      <div class="panel-header">
+        <h2>Workspace</h2>
+      </div>
+      <ul class="nav-list" id="navList">
+        <li class="nav-item active" data-view="board"><div class="title">Board</div><div class="sub">Lots &amp; shipments</div></li>
+        <li class="nav-item" data-view="sites"><div class="title">Sites &amp; cycles</div><div class="sub">Production blocks</div></li>
+        <li class="nav-item" data-view="harvests"><div class="title">Harvests</div><div class="sub">Confirm quantities</div></li>
+        <li class="nav-item" data-view="tlcs"><div class="title">Export batches</div><div class="sub">Pack · labels · lock</div></li>
+        <li class="nav-item" data-view="shipments"><div class="title">Shipments</div><div class="sub">Clearance · ship · pack</div></li>
+        <li class="nav-item" data-view="recall"><div class="title">Recall</div><div class="sub">Trace by case or lot</div></li>
+        <li class="nav-item" data-view="docs"><div class="title">Documents &amp; certs</div><div class="sub">Labs · certificates</div></li>
+      </ul>
+    </section>
+
+    <section class="panel panel-detail" id="detailPanel">
+      <div class="empty-state"><p>Loading…</p></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h3 id="modalTitle">Action</h3>
+      <div id="modalBody"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="modalCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="modalSubmit">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/export/js/export.js"></script>
+</body>
+</html>

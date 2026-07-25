@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lot passport — Agronexia Export</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/agronexia-mark.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/export/css/export.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/export/">
+      <img class="brand-mark" src="/assets/brand/agronexia-mark.svg" width="36" height="36" alt="" />
+      <span class="brand-text" style="display:flex;flex-direction:column;gap:2px">
+        <span class="brand-name">Public lot passport</span>
+        <span class="brand-sub" style="font-size:0.72rem;color:var(--text-muted)">Fresh ginger export · Agronexia</span>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <div class="dash-switch" role="navigation" aria-label="Switch dashboard">
+        <a class="dash-switch-item" href="/">Greenhouse ops</a>
+        <a class="dash-switch-item is-active" href="/export/">Export Traceability</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="passport-page">
+    <div class="scope-banner-inner" style="margin-bottom:16px" id="passportScope">
+      <strong>Export passport</strong>
+    </div>
+    <div class="passport-card" id="passportRoot">
+      <p class="meta">Loading passport…</p>
+    </div>
+  </div>
+
+  <script>
+    (async function () {
+      const root = document.getElementById('passportRoot');
+      const params = new URLSearchParams(location.search);
+      let code = params.get('code') || '';
+      if (!code && location.pathname.includes('/t/')) {
+        code = decodeURIComponent(location.pathname.split('/t/')[1] || '').replace(/\/$/, '');
+      }
+      if (!code) {
+        root.innerHTML = '<p>Missing TLC code. Use ?code=TLC-…</p>';
+        return;
+      }
+      try {
+        const res = await fetch('/api/traceability/passport/' + encodeURIComponent(code));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Not found');
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const certs = (data.certifications || []).map((c) => `<li>${esc(c.scheme)} · ${esc(c.number)} (to ${esc(c.validTo)})</li>`).join('') || '<li>None on file</li>';
+        const tl = (data.timeline || []).map((e) =>
+          `<li><strong>${esc(e.eventType)}</strong> · ${esc(e.eventDatetime)}${e.quantity != null ? ` · ${esc(e.quantity)} ${esc(e.unit)}` : ''}</li>`
+        ).join('') || '<li>No events yet</li>';
+        root.innerHTML = `
+          <p class="meta">${esc(data.scope?.app)} · ${esc(data.scope?.product)}</p>
+          <h1>${esc(data.tlc.code)}</h1>
+          <span class="status ${esc(data.tlc.status)}">${esc(data.tlc.status)}</span>
+          <dl class="kv">
+            <dt>Product</dt><dd>${esc(data.tlc.productDescription)}</dd>
+            <dt>Form / grade</dt><dd>${esc(data.tlc.form)} / ${esc(data.tlc.grade)}</dd>
+            <dt>Program</dt><dd>${esc(data.tlc.program)}</dd>
+            <dt>Origin</dt><dd>${esc(data.origin.country)} · ${esc(data.origin.siteName)} (${esc(data.origin.siteCode)})</dd>
+            <dt>Packed</dt><dd>${esc(data.tlc.packedQtyKg)} kg · pack lock ${esc(data.tlc.packLockedAt || '—')}</dd>
+          </dl>
+          <div class="section"><h3>Certifications</h3><ul>${certs}</ul></div>
+          <div class="section"><h3>Timeline</h3><ul class="timeline">${tl}</ul></div>
+          <p class="hint" style="margin-top:20px">${esc(data.scope?.note)}</p>
+        `;
+        document.title = data.tlc.code + ' · Ginger export passport';
+      } catch (e) {
+        root.innerHTML = `<p class="meta">Could not load passport.</p><p>${String(e.message || e)}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>
