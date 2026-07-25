@@ -341,7 +341,7 @@ function renderHowTo() {
         <li><strong>Packing lot</strong> — Create a packing lot from the selected harvest batches, fill boxes, put labels, then lock. Free kilos still not packed show as unaccounted.</li>
         <li><strong>Papers</strong> — Tick the countries you will export to. The list shows only the papers those places need. Upload each one.</li>
         <li><strong>Load the truck</strong> — Say who the buyer is and where it goes. When everything is ready, lock the load and ship.</li>
-        <li><strong>Find a box later</strong> — If someone asks “where did this box come from?”, type the lot or box code.</li>
+        <li><strong>Find a box later</strong> — If someone asks where a box came from, type the code on the box or packing lot. No fancy words — just find the story.</li>
       </ol>
       <p class="meta" style="margin-top:16px">
         The left menu is the same path. <strong>Overview</strong> shows everything you already made.
@@ -1198,14 +1198,14 @@ async function renderTlcDetail(id) {
         <div class="meta">${statusBadge(t.status)} · ${esc(t.productDescription)} · ${esc(t.grade)} · site ${esc(detail.site?.code)}</div>
       </div>
       <div class="detail-actions">
-        <button class="btn btn-ghost btn-sm" id="backTlcs">All TLCs</button>
+        <button class="btn btn-ghost btn-sm" id="backTlcs">All packing lots</button>
         <a class="btn btn-secondary btn-sm" href="/export/passport.html?code=${encodeURIComponent(t.code)}" target="_blank">Public passport</a>
         <button class="btn btn-secondary btn-sm" id="btnQr">QR passport URL</button>
-        <button class="btn btn-secondary btn-sm" id="btnAlloc">Allocate harvest</button>
-        <button class="btn btn-secondary btn-sm" id="btnCase">+ Case</button>
-        <button class="btn btn-secondary btn-sm" id="btnLabels">Issue labels</button>
-        <button class="btn btn-primary btn-sm" id="btnPackLock">Pack lock</button>
-        <button class="btn btn-secondary btn-sm" id="btnMrl">Add MRL pass</button>
+        <button class="btn btn-secondary btn-sm" id="btnAlloc">Add dig kilos</button>
+        <button class="btn btn-secondary btn-sm" id="btnCase">+ Box</button>
+        <button class="btn btn-secondary btn-sm" id="btnLabels">Mark labels done</button>
+        <button class="btn btn-primary btn-sm" id="btnPackLock">Lock packing</button>
+        <button class="btn btn-secondary btn-sm" id="btnMrl">Add residue lab (passed)</button>
       </div>
     </div>
     <div class="two-col">
@@ -1222,7 +1222,7 @@ async function renderTlcDetail(id) {
       <h3>Documents (downloadable)</h3>
       <div class="table-wrap"><table class="data">
         <thead><tr><th>Type</th><th>Number</th><th>Result</th><th></th></tr></thead>
-        <tbody>${docRows || '<tr><td colspan="4">No documents on this TLC</td></tr>'}</tbody>
+        <tbody>${docRows || '<tr><td colspan="4">No documents on this packing lot</td></tr>'}</tbody>
       </table></div>
     </div>
   `;
@@ -1246,9 +1246,9 @@ async function renderTlcDetail(id) {
     const hs = state.board.harvests.filter((h) => h.status === 'CONFIRMED' || Number(h.remainingKg) > 0);
     const opts = hs.map((h) => `<option value="${esc(h.id)}">${esc(h.code)} rem ${esc(h.remainingKg)}</option>`).join('');
     openModal(
-      'Allocate harvest to TLC (same site only)',
+      'Add harvest kilos to this packing lot (same place only)',
       `<div class="form-grid">
-        <label class="field">Harvest<select id="f_h">${opts}</select></label>
+        <label class="field">Dig batch<select id="f_h">${opts}</select></label>
         <label class="field">Kg<input id="f_qty" type="number" min="0.1" step="0.1" /></label>
       </div>`,
       async () => {
@@ -1256,7 +1256,7 @@ async function renderTlcDetail(id) {
           method: 'POST',
           body: JSON.stringify({ harvestId: val('f_h'), quantityKg: Number(val('f_qty')) }),
         });
-        toast('Allocated');
+        toast('Kilos added to packing lot');
         state.selectedTlcId = t.id;
       }
     );
@@ -1280,7 +1280,7 @@ async function renderTlcDetail(id) {
   document.getElementById('btnLabels').onclick = async () => {
     try {
       await api('/tlcs/' + t.id + '/labels', { method: 'POST', body: '{}' });
-      toast('Labels issued from system');
+      toast('Labels marked done');
       await refresh();
       state.selectedTlcId = t.id;
       renderTlcDetail(t.id);
@@ -1292,7 +1292,7 @@ async function renderTlcDetail(id) {
   document.getElementById('btnPackLock').onclick = async () => {
     try {
       await api('/tlcs/' + t.id + '/pack-lock', { method: 'POST', body: '{}' });
-      toast('Pack locked');
+      toast('Packing locked');
       await refresh();
       state.selectedTlcId = t.id;
       renderTlcDetail(t.id);
@@ -1303,10 +1303,10 @@ async function renderTlcDetail(id) {
 
   document.getElementById('btnMrl').onclick = () => {
     openModal(
-      'Add MRL lab (pass)',
+      'Add residue lab report (passed)',
       `<div class="form-grid">
-        <label class="field">Number<input id="f_n" value="LAB-MRL-" /></label>
-        <label class="field">Market<input id="f_m" value="EU" /></label>
+        <label class="field">Lab report number<input id="f_n" value="LAB-" /></label>
+        <label class="field">For market<input id="f_m" value="EU" /></label>
         <label class="field">Lab name<input id="f_lab" value="Residue Lab" /></label>
       </div>`,
       async () => {
@@ -1323,7 +1323,7 @@ async function renderTlcDetail(id) {
             fileName: 'mrl.txt',
           }),
         });
-        toast('MRL document stored');
+        toast('Residue lab report saved');
         state.selectedTlcId = t.id;
       }
     );
@@ -1451,16 +1451,16 @@ async function renderShipmentDetail(id) {
       </div>
       <div class="detail-actions">
         <button class="btn btn-ghost btn-sm" id="backShip">All shipments</button>
-        <button class="btn btn-secondary btn-sm" id="btnAddTlc">Add TLC</button>
-        <button class="btn btn-secondary btn-sm" id="btnTransport">Transport / docs fields</button>
-        <button class="btn btn-secondary btn-sm" id="btnPhyto">Add phyto + commercial</button>
-        <button class="btn btn-primary btn-sm" id="btnShipLock">Ship lock</button>
-        <button class="btn btn-secondary btn-sm" id="btnShipped">Mark shipped</button>
+        <button class="btn btn-secondary btn-sm" id="btnAddTlc">Add packing lot</button>
+        <button class="btn btn-secondary btn-sm" id="btnTransport">Truck / container numbers</button>
+        <button class="btn btn-secondary btn-sm" id="btnPhyto">Add plant-health + invoice papers</button>
+        <button class="btn btn-primary btn-sm" id="btnShipLock">Lock for export</button>
+        <button class="btn btn-secondary btn-sm" id="btnShipped">Mark truck left</button>
       </div>
     </div>
     <div class="section" style="margin-top:0">
-      <h3>Member TLCs</h3>
-      <div class="table-wrap"><table class="data"><thead><tr><th>TLC</th><th>Kg</th><th>Status</th></tr></thead><tbody>${members || '<tr><td colspan="3">None</td></tr>'}</tbody></table></div>
+      <h3>Packing lots on this load</h3>
+      <div class="table-wrap"><table class="data"><thead><tr><th>Packing lot</th><th>Kg</th><th>Status</th></tr></thead><tbody>${members || '<tr><td colspan="3">None</td></tr>'}</tbody></table></div>
     </div>
     <div class="section">
       <h3>Clearance — ${esc(ev.profileLabel || marketLabel(s.destinationProfile))} ${ev.ok ? statusBadge('pass') : statusBadge('fail')}</h3>
@@ -1491,14 +1491,14 @@ async function renderShipmentDetail(id) {
       .map((t) => `<option value="${esc(t.id)}">${esc(t.code)} (${esc(t.status)})</option>`)
       .join('');
     openModal(
-      'Add TLC to shipment',
-      `<label class="field">TLC<select id="f_t">${opts}</select></label>`,
+      'Add packing lot to this truck load',
+      `<label class="field">Packing lot<select id="f_t">${opts}</select></label>`,
       async () => {
         await api('/shipments/' + s.id + '/tlcs', {
           method: 'POST',
           body: JSON.stringify({ tlcId: val('f_t') }),
         });
-        toast('TLC added');
+        toast('Packing lot added to load');
         state.selectedShipmentId = s.id;
       }
     );
@@ -1566,7 +1566,7 @@ async function renderShipmentDetail(id) {
   document.getElementById('btnShipLock').onclick = async () => {
     try {
       const r = await api('/shipments/' + s.id + '/ship-lock', { method: 'POST', body: '{}' });
-      toast('Shipment locked — export pack ready');
+      toast('Load locked — export folder ready');
       await refresh();
       state.selectedShipmentId = s.id;
       renderShipmentDetail(s.id);
@@ -1583,7 +1583,7 @@ async function renderShipmentDetail(id) {
   document.getElementById('btnShipped').onclick = async () => {
     try {
       await api('/shipments/' + s.id + '/shipped', { method: 'POST', body: '{}' });
-      toast('Marked shipped');
+      toast('Marked as truck left');
       await refresh();
       state.selectedShipmentId = s.id;
       renderShipmentDetail(s.id);
@@ -1598,23 +1598,74 @@ function renderRecall() {
     <div class="detail-header">
       <div>
         <h2>Find a box later</h2>
-        <div class="meta">Type a box code or packing-lot code to see where it came from.</div>
+        <div class="meta">Type the code on the box or packing lot. We show where it grew, when it was dug, and which truck it went on.</div>
       </div>
     </div>
     <div class="form-grid">
-      <label class="field">Case or TLC code<input id="recallQ" placeholder="e.g. CS-… or TLC-G-2026-0042" /></label>
+      <label class="field">Box or packing-lot code
+        <input id="recallQ" placeholder="Code from the label on the box or lot" />
+      </label>
     </div>
-    <button class="btn btn-primary" id="runRecall">Run recall</button>
+    <button class="btn btn-primary" id="runRecall">Find where this came from</button>
     <div id="recallOut" class="section"></div>
   `;
   document.getElementById('runRecall').onclick = async () => {
     const q = document.getElementById('recallQ').value.trim();
     const out = document.getElementById('recallOut');
+    if (!q) {
+      toast('Type a box or packing-lot code first', 'error');
+      return;
+    }
     try {
       const r = await api('/recall', { method: 'POST', body: JSON.stringify({ query: q }) });
-      out.innerHTML = `<pre style="white-space:pre-wrap;font-size:12px;background:#f7faf6;padding:14px;border-radius:12px;border:1px solid var(--border)">${esc(JSON.stringify(r.result, null, 2))}</pre>`;
-      toast('Recall run logged');
+      const res = r.result || {};
+      const lot = res.tlc || {};
+      const site = res.site || {};
+      const cases = res.cases || [];
+      const harvests = res.harvests || [];
+      const ships = res.shipments || [];
+      const docs = res.documents || [];
+      const harvestLines = harvests
+        .map((x) => {
+          const h = x.harvest || x;
+          return `<li>${esc(h.code || '')} — ${esc(h.quantityKg ?? x.quantityKg ?? '—')} kg</li>`;
+        })
+        .join('');
+      const shipLines = ships
+        .map(
+          (s) =>
+            `<li>${esc(s.code)} — ${esc(s.consigneeName || '')} · ${esc(s.destinationCountry || '')} · ${esc(s.status || '')}</li>`
+        )
+        .join('');
+      const docLines = docs
+        .map((d) => `<li>${esc(d.type)} ${esc(d.number || '')}</li>`)
+        .join('');
+      out.innerHTML = `
+        <div class="passport-card" style="margin-top:12px">
+          <h3 style="margin:0 0 8px">Found packing lot: ${esc(lot.code || '—')}</h3>
+          <p class="meta">${statusBadge(lot.status)} · ${esc(lot.productDescription || '')} · ${esc(lot.packedQtyKg ?? '—')} kg packed</p>
+          <dl class="kv">
+            <dt>Where it grew</dt>
+            <dd>${esc(site.name || site.code || '—')}${site.registrationNumber ? ' · reg ' + esc(site.registrationNumber) : ''}</dd>
+            <dt>Boxes on this lot</dt>
+            <dd>${esc(cases.length)} box(es)</dd>
+          </dl>
+          <div class="section">
+            <h3>Dig batches</h3>
+            <ul>${harvestLines || '<li>None listed</li>'}</ul>
+          </div>
+          <div class="section">
+            <h3>Truck loads</h3>
+            <ul>${shipLines || '<li>Not on a load yet</li>'}</ul>
+          </div>
+          <div class="section">
+            <h3>Papers on file</h3>
+            <ul>${docLines || '<li>None</li>'}</ul>
+          </div>
+        </div>`;
+      toast('Found — see story below');
     } catch (e) {
+      out.innerHTML = `<p class="meta balance-warn">${esc(e.message || 'Not found')}</p>`;
       toast(e.message, 'error');
     }
   };

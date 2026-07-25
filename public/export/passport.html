@@ -43,7 +43,7 @@
         code = decodeURIComponent(location.pathname.split('/t/')[1] || '').replace(/\/$/, '');
       }
       if (!code) {
-        root.innerHTML = '<p>Missing TLC code. Use ?code=TLC-…</p>';
+        root.innerHTML = '<p>Missing packing-lot code on this link.</p>';
         return;
       }
       try {
